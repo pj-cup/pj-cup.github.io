@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PJ Cup Season1</title>
+<script>
+(function () {
+  try {
+    var stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") {
+      document.documentElement.setAttribute("data-theme", stored);
+    }
+  } catch (e) {}
+})();
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <header class="site-header">
+    <div>
+      <h1>PJ Cup Season1</h1>
+      <p class="subtitle">Snapshot: 18 Sep 2026</p>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙</button>
+  </header>
+
+  <section>
+    <h2>Standings</h2>
+    <div class="table-scroll">
+<table>
+<thead><tr><th>#</th><th>Player</th><th class="num">MP</th><th class="num">W</th><th class="num">D</th><th class="num">L</th><th class="num">GF</th><th class="num">GA</th><th class="num">GD</th><th class="num">Pts</th></tr></thead>
+<tbody><tr><td>1</td><td>Diew</td><td class="num">7</td><td class="num">7</td><td class="num">0</td><td class="num">0</td><td class="num">56</td><td class="num">4</td><td class="num">52</td><td class="num">21</td></tr><tr><td>2</td><td>Nine</td><td class="num">7</td><td class="num">4</td><td class="num">2</td><td class="num">1</td><td class="num">47</td><td class="num">27</td><td class="num">20</td><td class="num">14</td></tr><tr><td>3</td><td>Golf</td><td class="num">5</td><td class="num">4</td><td class="num">0</td><td class="num">1</td><td class="num">32</td><td class="num">18</td><td class="num">14</td><td class="num">12</td></tr><tr><td>4</td><td>Fight</td><td class="num">7</td><td class="num">2</td><td class="num">3</td><td class="num">2</td><td class="num">39</td><td class="num">39</td><td class="num">0</td><td class="num">9</td></tr><tr><td>5</td><td>Prew</td><td class="num">6</td><td class="num">2</td><td class="num">2</td><td class="num">2</td><td class="num">31</td><td class="num">33</td><td class="num">-2</td><td class="num">8</td></tr><tr><td>6</td><td>Bank</td><td class="num">4</td><td class="num">0</td><td class="num">2</td><td class="num">2</td><td class="num">14</td><td class="num">26</td><td class="num">-12</td><td class="num">2</td></tr><tr><td>7</td><td>Ohm</td><td class="num">5</td><td class="num">0</td><td class="num">1</td><td class="num">4</td><td class="num">12</td><td class="num">39</td><td class="num">-27</td><td class="num">1</td></tr><tr><td>8</td><td>Arm</td><td class="num">1</td><td class="num">0</td><td class="num">0</td><td class="num">1</td><td class="num">2</td><td class="num">8</td><td class="num">-6</td><td class="num">0</td></tr><tr><td>9</td><td>Zid</td><td class="num">3</td><td class="num">0</td><td class="num">0</td><td class="num">3</td><td class="num">7</td><td class="num">24</td><td class="num">-17</td><td class="num">0</td></tr><tr><td>10</td><td>Moo</td><td class="num">3</td><td class="num">0</td><td class="num">0</td><td class="num">3</td><td class="num">2</td><td class="num">24</td><td class="num">-22</td><td class="num">0</td></tr><tr><td>11</td><td>Nat</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr></tbody>
+</table>
+    </div>
+  </section>
+  <section>
+    <h2>Rules</h2>
+    <ul class="rules-list"><li><span class="badge">2 Set</span></li><li><span class="badge">First of 4 games</span></li><li><span class="badge">1-1 Set = Draw</span></li><li><span class="badge">Deuce Death</span></li></ul>
+  </section>
+
+  <section>
+    <h2>Head-to-Head</h2>
+    <div class="table-scroll">
+<table class="h2h">
+<thead><tr><th>vs</th><th>Arm</th><th>Bank</th><th>Diew</th><th>Fight</th><th>Golf</th><th>Moo</th><th>Nat</th><th>Nine</th><th>Ohm</th><th>Prew</th><th>Zid</th></tr></thead>
+<tbody><tr><th>Arm</th><td class="cell-diag"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">2-4, 0-4</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-empty"></td><td class="cell-tba" title="Scheduled, not yet played">TBA</td></tr><tr><th>Bank</th><td class="cell-empty"></td><td class="cell-diag"></td><td class="cell-result">0-4, 0-4</td><td class="cell-result">4-0, 2-4</td><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">0-4, 2-4</td><td class="cell-empty"></td><td class="cell-result">2-4, 4-2</td><td class="cell-tba" title="Scheduled, not yet played">TBA</td></tr><tr><th>Diew</th><td class="cell-empty"></td><td class="cell-result">4-0, 4-0</td><td class="cell-diag"></td><td class="cell-result">4-0, 4-0</td><td class="cell-result">4-0, 4-0</td><td class="cell-result">4-0, 4-0</td><td class="cell-empty"></td><td class="cell-result">4-1, 4-1</td><td class="cell-result">4-0, 4-0</td><td class="cell-result">4-2, 4-0</td><td class="cell-empty"></td></tr><tr><th>Fight</th><td class="cell-empty"></td><td class="cell-result">0-4, 4-2</td><td class="cell-result">0-4, 0-4</td><td class="cell-diag"></td><td class="cell-result">3-4, 2-4</td><td class="cell-result">4-0, 4-2</td><td class="cell-ongoing" title="Match in progress — not yet counted in standings">2-3</td><td class="cell-result">4-3, 3-4</td><td class="cell-result">4-2, 3-4</td><td class="cell-result">4-0, 4-2</td><td class="cell-empty"></td></tr><tr><th>Golf</th><td class="cell-result">4-2, 4-0</td><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-result">0-4, 0-4</td><td class="cell-result">4-3, 4-2</td><td class="cell-diag"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-result">4-0, 4-0</td><td class="cell-empty"></td><td class="cell-result">4-2, 4-1</td></tr><tr><th>Moo</th><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">0-4, 0-4</td><td class="cell-result">0-4, 2-4</td><td class="cell-empty"></td><td class="cell-diag"></td><td class="cell-empty"></td><td class="cell-result">0-4, 0-4</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td></tr><tr><th>Nat</th><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-ongoing" title="Match in progress — not yet counted in standings">3-2</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-diag"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td></tr><tr><th>Nine</th><td class="cell-empty"></td><td class="cell-result">4-0, 4-2</td><td class="cell-result">1-4, 1-4</td><td class="cell-result">3-4, 4-3</td><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-result">4-0, 4-0</td><td class="cell-empty"></td><td class="cell-diag"></td><td class="cell-result">4-1, 4-0</td><td class="cell-result">2-4, 4-1</td><td class="cell-result">4-1, 4-3</td></tr><tr><th>Ohm</th><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-empty"></td><td class="cell-result">0-4, 0-4</td><td class="cell-result">2-4, 4-3</td><td class="cell-result">0-4, 0-4</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">1-4, 0-4</td><td class="cell-diag"></td><td class="cell-result">3-4, 2-4</td><td class="cell-ongoing" title="Match in progress — not yet counted in standings">4-3</td></tr><tr><th>Prew</th><td class="cell-empty"></td><td class="cell-result">4-2, 2-4</td><td class="cell-result">2-4, 0-4</td><td class="cell-result">0-4, 2-4</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">4-2, 1-4</td><td class="cell-result">4-3, 4-2</td><td class="cell-diag"></td><td class="cell-result">4-0, 4-0</td></tr><tr><th>Zid</th><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-tba" title="Scheduled, not yet played">TBA</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">2-4, 1-4</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-result">1-4, 3-4</td><td class="cell-ongoing" title="Match in progress — not yet counted in standings">3-4</td><td class="cell-result">0-4, 0-4</td><td class="cell-diag"></td></tr></tbody>
+</table>
+    </div>
+  </section>
+
+  <footer>
+    <p class="source">Source: csv/20260918.csv</p>
+  </footer>
+</div>
+<script src="theme.js"></script>
+</body>
+</html>

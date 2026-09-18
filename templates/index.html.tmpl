@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>$title</title>
+<script>
+(function () {
+  try {
+    var stored = localStorage.getItem("theme");
+    if (stored === "light" || stored === "dark") {
+      document.documentElement.setAttribute("data-theme", stored);
+    }
+  } catch (e) {}
+})();
+</script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <header class="site-header">
+    <div>
+      <h1>$title</h1>
+      <p class="subtitle">Snapshot: $snapshot_date</p>
+    </div>
+    <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙</button>
+  </header>
+
+  <section>
+    <h2>Standings</h2>
+    <div class="table-scroll">
+$standings_table
+    </div>
+  </section>
+$rules_section
+  <section>
+    <h2>Head-to-Head</h2>
+    <div class="table-scroll">
+$h2h_table
+    </div>
+  </section>
+
+  <footer>
+    <p class="source">Source: $source_file</p>
+  </footer>
+</div>
+<script src="theme.js"></script>
+</body>
+</html>
