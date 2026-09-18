@@ -4,6 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>$title</title>
+<meta name="description" content="$description">
+<meta property="og:type" content="website">
+<meta property="og:title" content="$title">
+<meta property="og:description" content="$description">
+<meta property="og:url" content="$page_url">
+<meta property="og:image" content="$image_url">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="$title">
+<meta name="twitter:description" content="$description">
+<meta name="twitter:image" content="$image_url">
+<link rel="icon" href="logo.png" type="image/png">
 <script>
 (function () {
   try {
@@ -19,9 +30,12 @@
 <body>
 <div class="container">
   <header class="site-header">
-    <div>
-      <h1>$title</h1>
-      <p class="subtitle">Snapshot: $snapshot_date</p>
+    <div class="site-title">
+      <img src="logo.png" alt="" class="logo" width="40" height="40">
+      <div>
+        <h1>$title</h1>
+        <p class="subtitle">Snapshot: $snapshot_date</p>
+      </div>
     </div>
     <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Toggle dark mode">🌙</button>
   </header>

@@ -4,6 +4,7 @@
 import csv
 import html
 import re
+import shutil
 import sys
 from pathlib import Path
 from string import Template
@@ -12,6 +13,8 @@ ROOT = Path(__file__).resolve().parent
 CSV_DIR = ROOT / "csv"
 DOCS_DIR = ROOT / "docs"
 TEMPLATE_DIR = ROOT / "templates"
+ASSETS_DIR = ROOT / "assets"
+LOGO_SOURCE = ASSETS_DIR / "logo_1000.png"
 SNAPSHOT_RE = re.compile(r"^\d{8}\.csv$")
 
 STANDINGS_COLUMNS = [
@@ -173,10 +176,18 @@ def format_snapshot_date(path):
     return f"{int(day)} {months[int(month) - 1]} {year}"
 
 
+SITE_URL = "https://pj-cup.github.io/"
+
+
 def render_page(standings_html, rules_html, h2h_html, source_path, snapshot_date):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
+    title = "PJ Cup Season1"
+    description = f"Tennis league standings and head-to-head results, updated {snapshot_date}."
     return template.substitute(
-        title="PJ Cup Season1",
+        title=title,
+        description=html.escape(description),
+        page_url=SITE_URL,
+        image_url=f"{SITE_URL}logo.png",
         snapshot_date=snapshot_date,
         source_file=f"csv/{source_path.name}",
         standings_table=standings_html,
@@ -205,8 +216,12 @@ def main():
     (DOCS_DIR / "theme.js").write_text(
         (TEMPLATE_DIR / "theme.js").read_text(encoding="utf-8"), encoding="utf-8"
     )
+    shutil.copyfile(LOGO_SOURCE, DOCS_DIR / "logo.png")
 
-    print(f"Wrote {DOCS_DIR / 'index.html'}, {DOCS_DIR / 'style.css'}, {DOCS_DIR / 'theme.js'}")
+    print(
+        f"Wrote {DOCS_DIR / 'index.html'}, {DOCS_DIR / 'style.css'}, "
+        f"{DOCS_DIR / 'theme.js'}, {DOCS_DIR / 'logo.png'} (from {LOGO_SOURCE.relative_to(ROOT)})"
+    )
     print(f"Players: {len(players)}, standings rows: {len(standings)}")
 
 
