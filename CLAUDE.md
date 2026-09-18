@@ -33,8 +33,8 @@ Exits non-zero if it finds a mismatch. No dependencies, no install step, no test
   2. **Head-to-head grid**: header `vs,<player>,...` (players alphabetical), then one row per player with one cell per opponent. Cells are quoted (contain commas), so must be parsed with the `csv` module, never `str.split(",")`.
 
 - **Head-to-head cell semantics** (`classify_cell()` in `build.py`) — matches are best-of-2-sets:
-  - empty → not scheduled
-  - `TBA` → scheduled, not played
+  - empty → not played yet (no result)
+  - `TBA` → not played yet (no result); just a note that the pair plans to play. Treat it the same as empty — neither is a confirmed fixture list, and any unplayed pair may still be played
   - one set score only (e.g. `2-3`) → match **in progress**, not yet counted in standings
   - two set scores (e.g. `4-0, 4-0`) → completed, counted in standings
   - The grid is asymmetric by design: cell `[A][B]` is A's-perspective score, `[B][A]` is B's-perspective (reversed) score. Render as-is; do not dedupe or merge the two.

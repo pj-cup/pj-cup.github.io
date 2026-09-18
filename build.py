@@ -95,7 +95,7 @@ def classify_cell(raw, row_player, col_player):
     if raw == "":
         return "empty", "", None
     if raw.upper() == "TBA":
-        return "tba", "TBA", "Scheduled, not yet played"
+        return "tba", "TBA", "Not played yet — planned to play"
     set_count = raw.count(",") + 1
     if set_count < 2:
         return "ongoing", raw, "Match in progress — not yet counted in standings"
