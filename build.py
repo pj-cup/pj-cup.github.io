@@ -125,7 +125,7 @@ def render_standings_table(standings):
     )
 
 
-def render_rules_section(standings):
+def render_rules_section(standings, section_class=None):
     items = [s for s in standings if s["rules"]]
     if not items:
         return ""
@@ -135,8 +135,9 @@ def render_rules_section(standings):
         for s in items
     )
 
+    section_attr = f' class="{section_class}"' if section_class else ""
     return (
-        "  <section>\n"
+        f"  <section{section_attr}>\n"
         "    <h2>Rules</h2>\n"
         f'    <ul class="rules-list">{list_items}</ul>\n'
         "  </section>\n"
@@ -177,11 +178,12 @@ def format_snapshot_date(path):
 
 
 SITE_URL = "https://pj-cup.github.io/"
+SITE_TITLE = "PJ Cup Season1"
 
 
 def render_page(standings_html, rules_html, h2h_html, source_path, snapshot_date):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
-    title = "PJ Cup Season1"
+    title = SITE_TITLE
     description = f"Tennis league standings and head-to-head results, updated {snapshot_date}."
     return template.substitute(
         title=title,
@@ -193,6 +195,124 @@ def render_page(standings_html, rules_html, h2h_html, source_path, snapshot_date
         standings_table=standings_html,
         rules_section=rules_html,
         h2h_table=h2h_html,
+    )
+
+
+def to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+SET_SCORE_RE = re.compile(r"(\d+)\s*-\s*(\d+)")
+
+
+def cell_outcome(raw):
+    """Display-only win/draw/loss for a completed cell; never feeds the standings."""
+    scores = [(int(a), int(b)) for a, b in SET_SCORE_RE.findall(raw)]
+    if not scores:
+        return ""
+    won = sum(a > b for a, b in scores)
+    lost = sum(a < b for a, b in scores)
+    return "win" if won > lost else "loss" if lost > won else "draw"
+
+
+def render_title_letters(title):
+    return "".join(
+        f'<span class="ltr" style="--i:{i}">{"&nbsp;" if ch == " " else html.escape(ch)}</span>'
+        for i, ch in enumerate(title)
+    )
+
+
+def render_beta_standings(standings):
+    cards = []
+    for i, s in enumerate(standings):
+        name = html.escape(s["name"])
+        rank = html.escape(s["rank"])
+        medal = f" medal-{s['rank']}" if s["rank"] in ("1", "2", "3") else ""
+        leader = " leader" if s["rank"] == "1" else ""
+
+        gf, ga = to_int(s["gf"]) or 0, to_int(s["ga"]) or 0
+        share = f"{gf / (gf + ga) * 100:.1f}" if gf + ga else "0"
+        bar_cls = "bar" if gf + ga else "bar empty"
+
+        gd_text, gd_cls = html.escape(s["gd"]), "zero"
+        gd = to_int(s["gd"])
+        if gd is not None and gd > 0:
+            gd_text, gd_cls = f"+{gd}", "pos"
+        elif gd is not None and gd < 0:
+            gd_cls = "neg"
+
+        pts = html.escape(s["pts"])
+        cards.append(
+            f'<li class="card{leader}" style="--i:{i}"><div class="inner">'
+            f'<span class="rank{medal}">{rank}</span>'
+            f'<div class="who"><span class="name">{name}</span>'
+            f'<span class="mp">{html.escape(s["mp"])} MP</span></div>'
+            f'<div class="pills">'
+            f'<span class="pill w" title="Wins"><b>{html.escape(s["w"])}</b>W</span>'
+            f'<span class="pill d" title="Draws"><b>{html.escape(s["d"])}</b>D</span>'
+            f'<span class="pill l" title="Losses"><b>{html.escape(s["l"])}</b>L</span>'
+            f"</div>"
+            f'<div class="gfga">'
+            f'<div class="{bar_cls}" role="img" aria-label="Games for {gf}, against {ga}">'
+            f'<i class="fill" style="--share:{share}"></i></div>'
+            f'<span class="nums">GF <b>{html.escape(s["gf"])}</b> · GA <b>{html.escape(s["ga"])}</b></span>'
+            f"</div>"
+            f'<span class="gd {gd_cls}" title="Game difference">{gd_text}</span>'
+            f'<span class="pts"><b class="count" data-to="{pts}">{pts}</b><small>PTS</small></span>'
+            f"</div></li>"
+        )
+    return f'    <ol class="board">{"".join(cards)}</ol>'
+
+
+def render_beta_h2h(players, grid):
+    header_cells = "".join(f"<th>{html.escape(p)}</th>" for p in players)
+
+    body_rows = []
+    for r, row_player in enumerate(players):
+        row_cells = [f"<th>{html.escape(row_player)}</th>"]
+        for c, col_player in enumerate(players):
+            raw = grid.get(row_player, {}).get(col_player, "")
+            cls, text, title = classify_cell(raw, row_player, col_player)
+            title_attr = f' title="{html.escape(title)}"' if title else ""
+            inner = html.escape(text)
+            if cls == "result":
+                outcome = cell_outcome(text)
+                if outcome:
+                    cls += f" out-{outcome}"
+                    inner = (
+                        f'<b class="wdl">{outcome[0].upper()}</b>'
+                        f'<span class="sc">{inner}</span>'
+                    )
+            row_cells.append(
+                f'<td class="cell-{cls}" style="--d:{(r + c) * 30}ms"{title_attr}>{inner}</td>'
+            )
+        body_rows.append(f"<tr>{''.join(row_cells)}</tr>")
+
+    return (
+        '<table class="h2h">\n'
+        f"<thead><tr><th>vs</th>{header_cells}</tr></thead>\n"
+        f"<tbody>{''.join(body_rows)}</tbody>\n"
+        "</table>"
+    )
+
+
+def render_beta_page(standings, players, grid, source_path, snapshot_date):
+    template = Template((TEMPLATE_DIR / "beta.html.tmpl").read_text(encoding="utf-8"))
+    description = f"Tennis league standings and head-to-head results, updated {snapshot_date}."
+    return template.substitute(
+        title=SITE_TITLE,
+        description=html.escape(description),
+        page_url=f"{SITE_URL}beta.html",
+        image_url=f"{SITE_URL}logo.png",
+        snapshot_date=snapshot_date,
+        source_file=f"csv/{source_path.name}",
+        title_letters=render_title_letters(SITE_TITLE),
+        standings_board=render_beta_standings(standings),
+        rules_section=render_rules_section(standings, section_class="reveal"),
+        h2h_table=render_beta_h2h(players, grid),
     )
 
 
@@ -210,6 +330,15 @@ def main():
 
     DOCS_DIR.mkdir(exist_ok=True)
     (DOCS_DIR / "index.html").write_text(page_html, encoding="utf-8")
+    (DOCS_DIR / "beta.html").write_text(
+        render_beta_page(standings, players, grid, latest, snapshot_date), encoding="utf-8"
+    )
+    (DOCS_DIR / "beta.css").write_text(
+        (TEMPLATE_DIR / "beta.css.tmpl").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    (DOCS_DIR / "beta.js").write_text(
+        (TEMPLATE_DIR / "beta.js").read_text(encoding="utf-8"), encoding="utf-8"
+    )
     (DOCS_DIR / "style.css").write_text(
         (TEMPLATE_DIR / "style.css.tmpl").read_text(encoding="utf-8"), encoding="utf-8"
     )
