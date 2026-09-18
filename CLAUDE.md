@@ -14,7 +14,13 @@ Regenerate the site after adding or editing a CSV snapshot:
 python3 build.py
 ```
 
-No dependencies, no install step, no test suite, no linter — `build.py` uses only the Python standard library.
+Check that a snapshot's head-to-head grid and standings table are internally consistent (mirror-matrix + standings reconciliation) before trusting it:
+
+```
+python3 verify.py csv/YYYYMMDD.csv
+```
+
+Exits non-zero if it finds a mismatch. No dependencies, no install step, no test suite, no linter — both scripts use only the Python standard library.
 
 ## Architecture
 
@@ -48,3 +54,5 @@ There's no automated test suite; after any change under `templates/` or `build.p
 1. Run `python3 build.py` and check it prints the expected source snapshot and no warnings (it warns on stderr if standings and head-to-head player lists diverge).
 2. Re-run it and diff `docs/` output (e.g. `md5`) to confirm the build stayed idempotent.
 3. Open `docs/index.html` in a browser to visually check the change.
+
+After adding or editing a CSV snapshot specifically, also run `python3 verify.py csv/YYYYMMDD.csv` (see Commands) — it reuses `parse_snapshot`/`classify_cell` from `build.py` as the single source of truth for what counts as a completed match, so it stays in sync with the site's own rendering logic.

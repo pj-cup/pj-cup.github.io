@@ -13,3 +13,11 @@ python3 build.py
 This reads the latest dated CSV in `csv/` and writes `docs/index.html`, `docs/style.css`, `docs/theme.js`, and `docs/logo.png`.
 
 To change the logo, replace `assets/logo_1000.png` and rerun the build.
+
+## Verify
+
+Check that a snapshot's match results and standings are consistent with each other before publishing:
+
+```
+python3 verify.py csv/YYYYMMDD.csv
+```
