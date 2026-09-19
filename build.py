@@ -28,6 +28,7 @@ STANDINGS_COLUMNS = [
     ("ga", "GA", True),
     ("gd", "GD", True),
     ("pts", "Pts", True),
+    ("ppm", "Pts/MP", True),
 ]
 
 
@@ -36,6 +37,16 @@ def find_latest_snapshot(csv_dir):
     if not candidates:
         raise SystemExit(f"No snapshot CSVs (YYYYMMDD.csv) found in {csv_dir}")
     return max(candidates, key=lambda p: p.name)
+
+
+def find_previous_snapshot(csv_dir, latest):
+    """The snapshot just before `latest` (same lexicographic order), or None."""
+    earlier = [
+        p
+        for p in csv_dir.glob("*.csv")
+        if SNAPSHOT_RE.match(p.name) and p.name < latest.name
+    ]
+    return max(earlier, key=lambda p: p.name) if earlier else None
 
 
 def parse_snapshot(path):
@@ -102,7 +113,51 @@ def classify_cell(raw, row_player, col_player):
     return "result", raw, None
 
 
-def render_standings_table(standings):
+def to_int(value):
+    try:
+        return int(value)
+    except ValueError:
+        return None
+
+
+def compute_rank_moves(standings, prev_standings):
+    """Places gained per player since the previous snapshot (positive = moved up).
+
+    Display-only. Players absent from the previous snapshot, or with a
+    non-integer rank in either one, get no entry.
+    """
+    prev_ranks = {s["name"]: to_int(s["rank"]) for s in prev_standings}
+    moves = {}
+    for s in standings:
+        prev, cur = prev_ranks.get(s["name"]), to_int(s["rank"])
+        if prev is not None and cur is not None:
+            moves[s["name"]] = prev - cur
+    return moves
+
+
+def format_pts_per_match(row):
+    """Display-only points per match played; an en dash when there is no MP yet."""
+    pts, mp = to_int(row["pts"]), to_int(row["mp"])
+    if pts is None or not mp:
+        return "–"
+    return f"{pts / mp:.2f}"
+
+
+def render_rank_move(delta, prev_label):
+    places = f"{abs(delta)} place{'s' if abs(delta) != 1 else ''}"
+    if delta > 0:
+        cls, text, title = "up", f"▲{delta}", f"Up {places} since {prev_label}"
+    elif delta < 0:
+        cls, text, title = "down", f"▼{-delta}", f"Down {places} since {prev_label}"
+    else:
+        cls, text, title = "same", "–", f"Same rank as {prev_label}"
+    return (
+        f'<span class="rank-move {cls}" title="{html.escape(title)}" '
+        f'aria-label="{html.escape(title)}">{text}</span>'
+    )
+
+
+def render_standings_table(standings, moves=None, prev_label=None):
     thead_cells = "".join(
         f'<th class="num">{label}</th>' if numeric else f"<th>{label}</th>"
         for _, label, numeric in STANDINGS_COLUMNS
@@ -110,9 +165,12 @@ def render_standings_table(standings):
 
     body_rows = []
     for row_data in standings:
+        values = {**row_data, "ppm": format_pts_per_match(row_data)}
         cells = []
         for key, _, numeric in STANDINGS_COLUMNS:
-            value = html.escape(row_data[key])
+            value = html.escape(values[key])
+            if key == "rank" and moves and row_data["name"] in moves:
+                value += " " + render_rank_move(moves[row_data["name"]], prev_label)
             cls = ' class="num"' if numeric else ""
             cells.append(f"<td{cls}>{value}</td>")
         body_rows.append(f"<tr>{''.join(cells)}</tr>")
@@ -181,7 +239,9 @@ SITE_URL = "https://pj-cup.github.io/"
 SITE_TITLE = "PJ Cup Season1"
 
 
-def render_page(standings_html, rules_html, h2h_html, source_path, snapshot_date):
+def render_page(
+    standings_html, rules_html, h2h_html, source_path, snapshot_date, standings_note=""
+):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
     title = SITE_TITLE
     description = f"Tennis league standings and head-to-head results, updated {snapshot_date}."
@@ -192,17 +252,11 @@ def render_page(standings_html, rules_html, h2h_html, source_path, snapshot_date
         image_url=f"{SITE_URL}logo.png",
         snapshot_date=snapshot_date,
         source_file=f"csv/{source_path.name}",
+        standings_note=standings_note,
         standings_table=standings_html,
         rules_section=rules_html,
         h2h_table=h2h_html,
     )
-
-
-def to_int(value):
-    try:
-        return int(value)
-    except ValueError:
-        return None
 
 
 SET_SCORE_RE = re.compile(r"(\d+)\s*-\s*(\d+)")
@@ -225,7 +279,7 @@ def render_title_letters(title):
     )
 
 
-def render_beta_standings(standings):
+def render_beta_standings(standings, moves=None, prev_label=None):
     cards = []
     for i, s in enumerate(standings):
         name = html.escape(s["name"])
@@ -245,9 +299,12 @@ def render_beta_standings(standings):
             gd_cls = "neg"
 
         pts = html.escape(s["pts"])
+        ppm = format_pts_per_match(s)
+        ppm_text = ppm if ppm == "–" else f"{ppm}/MP"
+        move = render_rank_move(moves[s["name"]], prev_label) if moves and s["name"] in moves else ""
         cards.append(
             f'<li class="card{leader}" style="--i:{i}"><div class="inner">'
-            f'<span class="rank{medal}">{rank}</span>'
+            f'<span class="rankcol"><span class="rank{medal}">{rank}</span>{move}</span>'
             f'<div class="who"><span class="name">{name}</span>'
             f'<span class="mp">{html.escape(s["mp"])} MP</span></div>'
             f'<div class="pills">'
@@ -261,7 +318,8 @@ def render_beta_standings(standings):
             f'<span class="nums">GF <b>{html.escape(s["gf"])}</b> · GA <b>{html.escape(s["ga"])}</b></span>'
             f"</div>"
             f'<span class="gd {gd_cls}" title="Game difference">{gd_text}</span>'
-            f'<span class="pts"><b class="count" data-to="{pts}">{pts}</b><small>PTS</small></span>'
+            f'<span class="pts"><b class="count" data-to="{pts}">{pts}</b><small>PTS</small>'
+            f'<small class="ppm" title="Points per match played">{ppm_text}</small></span>'
             f"</div></li>"
         )
     return f'    <ol class="board">{"".join(cards)}</ol>'
@@ -299,7 +357,10 @@ def render_beta_h2h(players, grid):
     )
 
 
-def render_beta_page(standings, players, grid, source_path, snapshot_date):
+def render_beta_page(
+    standings, players, grid, source_path, snapshot_date,
+    moves=None, prev_label=None, standings_note="",
+):
     template = Template((TEMPLATE_DIR / "beta.html.tmpl").read_text(encoding="utf-8"))
     description = f"Tennis league standings and head-to-head results, updated {snapshot_date}."
     return template.substitute(
@@ -310,7 +371,8 @@ def render_beta_page(standings, players, grid, source_path, snapshot_date):
         snapshot_date=snapshot_date,
         source_file=f"csv/{source_path.name}",
         title_letters=render_title_letters(SITE_TITLE),
-        standings_board=render_beta_standings(standings),
+        standings_note=standings_note,
+        standings_board=render_beta_standings(standings, moves, prev_label),
         rules_section=render_rules_section(standings, section_class="reveal"),
         h2h_table=render_beta_h2h(players, grid),
     )
@@ -323,15 +385,31 @@ def main():
     standings, players, grid = parse_snapshot(latest)
     snapshot_date = format_snapshot_date(latest)
 
-    standings_html = render_standings_table(standings)
+    moves, prev_label, standings_note = None, None, ""
+    previous = find_previous_snapshot(CSV_DIR, latest)
+    if previous:
+        print(f"Comparing ranks with: {previous.relative_to(ROOT)}")
+        prev_standings, _, _ = parse_snapshot(previous)
+        moves = compute_rank_moves(standings, prev_standings)
+        prev_label = format_snapshot_date(previous)
+        standings_note = (
+            f'    <p class="standings-note">Rank change vs {html.escape(prev_label)}</p>\n'
+        )
+
+    standings_html = render_standings_table(standings, moves, prev_label)
     rules_html = render_rules_section(standings)
     h2h_html = render_h2h_table(players, grid)
-    page_html = render_page(standings_html, rules_html, h2h_html, latest, snapshot_date)
+    page_html = render_page(
+        standings_html, rules_html, h2h_html, latest, snapshot_date, standings_note
+    )
 
     DOCS_DIR.mkdir(exist_ok=True)
     (DOCS_DIR / "index.html").write_text(page_html, encoding="utf-8")
     (DOCS_DIR / "beta.html").write_text(
-        render_beta_page(standings, players, grid, latest, snapshot_date), encoding="utf-8"
+        render_beta_page(
+            standings, players, grid, latest, snapshot_date, moves, prev_label, standings_note
+        ),
+        encoding="utf-8",
     )
     (DOCS_DIR / "beta.css").write_text(
         (TEMPLATE_DIR / "beta.css.tmpl").read_text(encoding="utf-8"), encoding="utf-8"

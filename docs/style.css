@@ -7,6 +7,7 @@
   --accent-soft: #dcf2dd;
   --accent: #1c7a3e;
   --warn: #b45309;
+  --down: #c0392b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -19,6 +20,7 @@
     --accent-soft: #16341f;
     --accent: #4fd07d;
     --warn: #f0a848;
+    --down: #ff7b6b;
   }
 }
 
@@ -31,6 +33,7 @@
   --accent-soft: #16341f;
   --accent: #4fd07d;
   --warn: #f0a848;
+  --down: #ff7b6b;
 }
 
 * { box-sizing: border-box; }
@@ -149,6 +152,24 @@ td.num, th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+.standings-note {
+  margin: -0.4rem 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.rank-move {
+  margin-left: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.rank-move.up { color: var(--accent); }
+.rank-move.down { color: var(--down); }
+.rank-move.same { color: var(--muted); font-weight: 400; }
 
 .badge {
   display: inline-block;

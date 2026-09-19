@@ -362,8 +362,32 @@ html.js .reveal.in .card { opacity: 1; transform: none; }
   animation: glow 2.6s ease-in-out infinite;
 }
 
-.rank {
+.rankcol {
   grid-area: rank;
+  position: relative;
+  width: 2.4rem;
+  height: 2.4rem;
+}
+
+.rank-move {
+  position: absolute;
+  right: -0.5rem;
+  bottom: -0.3rem;
+  padding: 0 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: help;
+}
+.rank-move.up { color: var(--win); border-color: currentColor; }
+.rank-move.down { color: var(--loss); border-color: currentColor; }
+.rank-move.same { color: var(--muted); font-weight: 400; border-color: transparent; background: transparent; opacity: 0.8; }
+
+.rank {
   position: relative;
   overflow: hidden;
   display: grid;
@@ -461,6 +485,9 @@ html.js .reveal.in .fill {
   font-variant-numeric: tabular-nums;
 }
 .pts small { display: block; margin-top: 0.15rem; font-size: 0.62rem; letter-spacing: 0.16em; color: var(--muted); }
+.pts .ppm { margin-top: 0.1rem; letter-spacing: 0.04em; white-space: nowrap; font-variant-numeric: tabular-nums; cursor: help; }
+
+.standings-note { margin: -0.4rem 0 0.75rem; color: var(--muted); font-size: 0.8rem; }
 
 /* ---------- rules ---------- */
 

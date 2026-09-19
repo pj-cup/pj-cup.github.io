@@ -26,7 +26,7 @@ Exits non-zero if it finds a mismatch. No dependencies, no install step, no test
 
 **Data flow:** `csv/YYYYMMDD.csv` + `assets/logo_1000.png` → `build.py` → `docs/index.html` + `docs/style.css` + `docs/theme.js` + `docs/logo.png` + `docs/beta.html` + `docs/beta.css` + `docs/beta.js`
 
-- **`csv/YYYYMMDD.csv`** — one full snapshot per matchday. Each file is self-contained (no diffing/merging across files); `build.py` always picks the *lexicographically latest* filename via `find_latest_snapshot()`, since `YYYYMMDD` sorts chronologically as a string. Adding a new matchday means adding a new dated file here, not editing the old one.
+- **`csv/YYYYMMDD.csv`** — one full snapshot per matchday. Each file is self-contained (no merging across files; the only cross-file use is the display-only rank-change indicator below); `build.py` always picks the *lexicographically latest* filename via `find_latest_snapshot()`, since `YYYYMMDD` sorts chronologically as a string. Adding a new matchday means adding a new dated file here, not editing the old one.
 
 - **CSV format** — a single file packs two tables separated by a non-blank "blank" row (`,,,,,,,,,,,`, detected by `all(cell.strip() == "")`, not by an empty string):
   1. **Standings**: `#,SS1,MP,W,D,L,GF,GA,GD,Pts,Rules,` — `SS1` is the player-name column (legacy label), `Rules` is freeform text (often empty, sometimes an emoji + short note like `📌2 Set`).
@@ -41,6 +41,10 @@ Exits non-zero if it finds a mismatch. No dependencies, no install step, no test
   - Standings (MP/W/D/L/GF/GA/GD/Pts) are taken verbatim from the CSV, not recomputed by `build.py`. Points formula, if ever needed for validation, is `3×W + 1×D`.
 
 - **`build.py`** — stdlib only (`csv`, `pathlib`, `re`, `shutil`, `string.Template`, `html`). Reads the latest snapshot, parses both tables, renders HTML markup directly — `render_standings_table`, `render_rules_section`, `render_h2h_table` for `index.html`; `render_beta_standings`, `render_beta_h2h`, `render_beta_page` for `beta.html` — fills `templates/index.html.tmpl` / `templates/beta.html.tmpl` via `string.Template`, copies `templates/style.css.tmpl`, `theme.js`, `beta.css.tmpl` and `beta.js` into `docs/` verbatim (only the `*.html.tmpl` files are substituted), and copies the brand logo from `assets/logo_1000.png` (`LOGO_SOURCE`) to `docs/logo.png`. Both pages share `parse_snapshot`, `classify_cell`, `format_snapshot_date` and `SITE_TITLE`/`SITE_URL`. Re-running is idempotent — it never reads its own prior output.
+
+- **Derived `Pts/MP`** (both pages) — `Pts ÷ MP` to 2 decimals (`format_pts_per_match()`, `–` when MP is 0), computed from the CSV's own `Pts`/`MP` cells. On `index.html` it is the last standings column (`render_standings_table`); on `beta.html` it is an `x.xx/MP` line under the PTS label of each card (`.ppm`, `render_beta_standings`). Every other standings value is verbatim from the CSV; this one is display-only and never feeds anything (the beta count-up still ends on the CSV points).
+
+- **Rank-change indicator** (both pages) — `find_previous_snapshot()` picks the next-lower `YYYYMMDD.csv` than the latest, `compute_rank_moves()` diffs the CSV `#` (rank) column between the two, and `render_rank_move()` produces a `▲N` / `▼N` / `–` span (`.rank-move`). `index.html` appends it to each player's `#` cell; `beta.html` shows it as a corner badge on the rank circle (inside a `.rankcol` wrapper). Both pages get a "Rank change vs <date>" note (`$standings_note`, built once in `main()`) under the Standings heading. Display-only: standings values are still verbatim from the latest CSV. With only one snapshot, or for a player absent from the previous one, no indicator or note is rendered.
 
 - **`assets/`** — hand-provided binary brand assets (currently just `logo_1000.png`), as opposed to `templates/`'s text sources. Not generated, not templated — if the logo changes, replace this file and rerun `build.py`.
 
