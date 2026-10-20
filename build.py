@@ -284,7 +284,7 @@ def cell_outcome(raw):
 # ---------- player cards (index.html only; all display-only) ----------
 
 # Clockwise from the top of the hexagon.
-INSIGHT_AXES = ("ATTACK", "DOMINANCE", "FORM", "MOVEMENT", "CLUTCH", "DEFENSE")
+INSIGHT_AXES = ("ATTACK", "DOMINANCE", "FORM", "DEFENSE", "CLUTCH", "MOVEMENT")
 GAMES_PER_SET = 4
 
 
