@@ -1,22 +1,24 @@
 <!doctype html>
-<html lang="en">
+<html lang="$lang">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
 <meta name="robots" content="noindex">
-<title>$title · Beta</title>
+<title>$title · $l_beta</title>
 <meta name="description" content="$description">
 <meta property="og:type" content="website">
-<meta property="og:title" content="$title · Beta">
+<meta property="og:title" content="$title · $l_beta">
 <meta property="og:description" content="$description">
 <meta property="og:url" content="$page_url">
+<meta property="og:locale" content="$og_locale">
 <meta property="og:image" content="$image_url">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="$title · Beta">
+<meta name="twitter:title" content="$title · $l_beta">
 <meta name="twitter:description" content="$description">
 <meta name="twitter:image" content="$image_url">
 <link rel="icon" href="logo.png" type="image/png">
+$alt_links
 <script>
 (function () {
   var r = document.documentElement;
@@ -48,7 +50,7 @@
   </div>
   <div class="sball"><span class="shadow"></span><i class="bounce"><i class="tball" style="font-size:34px"></i></i></div>
   <div class="splash-title">$title_letters</div>
-  <div class="skip">TAP TO SKIP</div>
+  <div class="skip">$l_tap_to_skip</div>
 </div>
 
 <div class="container">
@@ -57,26 +59,29 @@
       <img src="logo.png" alt="" class="logo" width="48" height="48">
       <div>
         <h1>$title</h1>
-        <p class="subtitle">Snapshot: $snapshot_date</p>
+        <p class="subtitle">$l_snapshot</p>
       </div>
     </div>
-    <a class="classic" href="index.html">&larr; Classic view</a>
+    <div class="header-actions">
+      $lang_toggle
+      <a class="classic" href="$classic_href">$l_classic_view</a>
+    </div>
   </header>
 
   <section id="standings" class="reveal">
-    <h2>Standings</h2>
+    <h2>$l_standings</h2>
 $standings_note$standings_board
   </section>
 $rules_section
   <section id="h2h" class="reveal">
-    <h2>Head-to-Head</h2>
+    <h2>$l_h2h</h2>
     <div class="table-scroll">
 $h2h_table
     </div>
   </section>
 
   <footer>
-    <p class="source">Source: $source_file</p>
+    <p class="source">$l_source</p>
   </footer>
 </div>
 <script src="beta.js"></script>

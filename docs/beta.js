@@ -11,6 +11,14 @@
   function $(sel, ctx) { return (ctx || document).querySelector(sel); }
   function $$(sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); }
 
+  /* ---------- language switch keeps the current #section ---------- */
+
+  $$(".lang-toggle a").forEach(function (a) {
+    a.addEventListener("click", function () {
+      a.href = a.getAttribute("href").split("#")[0] + location.hash;
+    });
+  });
+
   /* ---------- head-to-head crosshair (no motion, always on) ---------- */
 
   (function () {

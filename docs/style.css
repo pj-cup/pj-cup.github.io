@@ -61,7 +61,8 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    Thonburi, "Noto Sans Thai", "Leelawadee UI", sans-serif;
 }
 
 .container {
@@ -103,6 +104,42 @@ header .subtitle {
   margin: 0;
   color: var(--muted);
   font-size: 0.95rem;
+}
+
+.header-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lang-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.lang-toggle a,
+.lang-toggle span {
+  padding: 0.45rem 0.65rem;
+  line-height: 1;
+}
+
+.lang-toggle a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.lang-toggle a:hover {
+  background: var(--accent-soft);
+}
+
+.lang-toggle span {
+  background: var(--accent);
+  color: var(--bg);
 }
 
 .theme-toggle {
@@ -747,4 +784,10 @@ html:not(.pc-js) dialog.player-card:target {
 
 @media print {
   dialog.player-card { display: none !important; }
+}
+
+/* Thai: no tracking or caps on the small uppercase labels (it pulls tone marks apart). */
+:lang(th) :is(.pc-tile span, .pc-block h4, .rg-label, .cmp-title, .cmp-row span) {
+  letter-spacing: 0;
+  text-transform: none;
 }

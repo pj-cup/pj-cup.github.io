@@ -29,7 +29,8 @@ body {
   margin: 0;
   min-height: 100vh;
   color: var(--fg);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    Thonburi, "Noto Sans Thai", "Leelawadee UI", sans-serif;
   background:
     radial-gradient(1200px 700px at 12% -10%, rgba(28, 122, 62, 0.38), transparent 60%),
     radial-gradient(900px 600px at 100% 8%, rgba(215, 241, 58, 0.07), transparent 60%),
@@ -269,6 +270,22 @@ h1 {
   transition: color 0.2s, border-color 0.2s;
 }
 .classic:hover { color: var(--ball); border-color: var(--ball); }
+
+.header-actions { flex: none; display: flex; align-items: center; gap: 0.5rem; }
+
+.lang-toggle {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.lang-toggle a,
+.lang-toggle span { padding: 0.4rem 0.65rem; line-height: 1.2; }
+.lang-toggle a { color: var(--muted); text-decoration: none; transition: color 0.2s; }
+.lang-toggle a:hover { color: var(--ball); }
+.lang-toggle span { background: var(--ball); color: #0b1626; }
 
 /* ---------- sections ---------- */
 
@@ -680,4 +697,10 @@ footer { margin-top: 2.5rem; }
   .balls, #fx { display: none; }
   .ltr { opacity: 1; transform: none; }
   .court .ln { stroke-dashoffset: 0; }
+}
+
+/* Thai: no tracking or caps on the small uppercase labels (it pulls tone marks apart). */
+:lang(th) :is(.skip, section h2, .pts small) {
+  letter-spacing: 0;
+  text-transform: none;
 }

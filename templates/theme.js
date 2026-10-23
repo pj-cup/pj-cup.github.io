@@ -39,5 +39,12 @@
         applyTheme(next);
       });
     }
+
+    // Keep an open player card / compare (#player-x, #compare-a-vs-b) when switching language.
+    document.querySelectorAll(".lang-toggle a").forEach(function (a) {
+      a.addEventListener("click", function () {
+        a.href = a.getAttribute("href").split("#")[0] + location.hash;
+      });
+    });
   });
 })();

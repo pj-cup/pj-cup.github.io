@@ -8,7 +8,35 @@
 
   root.classList.add("pc-js");
 
-  var FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
+  var FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, ' +
+    'Thonburi, "Noto Sans Thai", "Leelawadee UI", sans-serif';
+
+  // Runtime strings; the page's <html lang> (set by build.py) picks the language.
+  var I18N = {
+    en: {
+      rank: "RANK", mp: "MP", wdl: "W–D–L", pts: "PTS", ppm: "PTS/MP", sets: "SETS W–L",
+      close: "CLOSE W–L", gf: "GF", ga: "GA", gd: "GD",
+      notPlayed: "Not played yet", inProgress: "In progress — not yet counted",
+      won: function (name) { return name + " won"; }, draw: "Draw",
+      vs: "VS", h2h: "Head-to-head", h2hCaps: "HEAD-TO-HEAD",
+      insights: "Player Insights", insightsCaps: "PLAYER INSIGHTS",
+      sub: "Season to date · scores out of 10", cmpNote: "Season to date · insights out of 10",
+      snapshot: "Snapshot ", rankNo: "RANK #",
+      record: function (p) { return p.w + "W " + p.d + "D " + p.l + "L"; }
+    },
+    th: {
+      rank: "อันดับ", mp: "แข่ง", wdl: "ชนะ–เสมอ–แพ้", pts: "แต้ม", ppm: "แต้ม/นัด", sets: "เซต ชนะ–แพ้",
+      close: "เซตสูสี ชนะ–แพ้", gf: "ได้", ga: "เสีย", gd: "ผลต่าง",
+      notPlayed: "ยังไม่ได้แข่ง", inProgress: "กำลังแข่ง — ยังไม่นับคะแนน",
+      won: function (name) { return name + " ชนะ"; }, draw: "เสมอ",
+      vs: "VS", h2h: "ผลการพบกัน", h2hCaps: "ผลการพบกัน",
+      insights: "ค่าพลังผู้เล่น", insightsCaps: "ค่าพลังผู้เล่น",
+      sub: "ตลอดฤดูกาล · คะแนนเต็ม 10", cmpNote: "ตลอดฤดูกาล · คะแนนเต็ม 10",
+      snapshot: "ข้อมูล ณ ", rankNo: "อันดับ #",
+      record: function (p) { return "ชนะ " + p.w + " เสมอ " + p.d + " แพ้ " + p.l; }
+    }
+  };
+  var L = I18N[root.lang] || I18N.en;
   var current = null;
   var rendered = {}; // key -> Promise<Blob|null>, so a share tap can stay synchronous
   var cmpDlg = document.getElementById("compare");
@@ -110,16 +138,16 @@
 
   // [label, display(p), score(p) for "better" (null = no data), direction: 1 higher wins, -1 lower wins, 0 not compared]
   var ROWS = [
-    ["RANK", function (p) { return "#" + p.rank; }, function (p) { return parseInt(p.rank, 10); }, -1],
-    ["MP", function (p) { return p.mp; }, null, 0],
-    ["W–D–L", function (p) { return p.w + "–" + p.d + "–" + p.l; }, null, 0],
-    ["PTS", function (p) { return p.pts; }, function (p) { return p.pts; }, 1],
-    ["PTS/MP", function (p) { return p.ppm; }, function (p) { return p.mp ? p.pts / p.mp : null; }, 1],
-    ["SETS W–L", function (p) { return p.sets_w + "–" + p.sets_l; }, function (p) { return ratio(p.sets_w, p.sets_l); }, 1],
-    ["CLOSE W–L", function (p) { return p.close_w + p.close_l ? p.close_w + "–" + p.close_l : "–"; }, function (p) { return ratio(p.close_w, p.close_l); }, 1],
-    ["GF", function (p) { return p.gf; }, function (p) { return p.gf; }, 1],
-    ["GA", function (p) { return p.ga; }, function (p) { return p.mp ? p.ga : null; }, -1], // 0 conceded in 0 matches is no merit
-    ["GD", function (p) { return signed(p.gd); }, function (p) { return p.gd; }, 1]
+    [L.rank, function (p) { return "#" + p.rank; }, function (p) { return parseInt(p.rank, 10); }, -1],
+    [L.mp, function (p) { return p.mp; }, null, 0],
+    [L.wdl, function (p) { return p.w + "–" + p.d + "–" + p.l; }, null, 0],
+    [L.pts, function (p) { return p.pts; }, function (p) { return p.pts; }, 1],
+    [L.ppm, function (p) { return p.ppm; }, function (p) { return p.mp ? p.pts / p.mp : null; }, 1],
+    [L.sets, function (p) { return p.sets_w + "–" + p.sets_l; }, function (p) { return ratio(p.sets_w, p.sets_l); }, 1],
+    [L.close, function (p) { return p.close_w + p.close_l ? p.close_w + "–" + p.close_l : "–"; }, function (p) { return ratio(p.close_w, p.close_l); }, 1],
+    [L.gf, function (p) { return p.gf; }, function (p) { return p.gf; }, 1],
+    [L.ga, function (p) { return p.ga; }, function (p) { return p.mp ? p.ga : null; }, -1], // 0 conceded in 0 matches is no merit
+    [L.gd, function (p) { return signed(p.gd); }, function (p) { return p.gd; }, 1]
   ];
 
   // Rows with the winning side: "a", "b" or "" (tie, no data, or not compared).
@@ -152,11 +180,11 @@
   }
 
   function h2hSummary(a, b, h) {
-    if (h.state === "none") return "Not played yet";
-    if (h.state === "ongoing") return "In progress — not yet counted";
-    if (h.outcome === "win") return a.name + " won";
-    if (h.outcome === "loss") return b.name + " won";
-    return "Draw";
+    if (h.state === "none") return L.notPlayed;
+    if (h.state === "ongoing") return L.inProgress;
+    if (h.outcome === "win") return L.won(a.name);
+    if (h.outcome === "loss") return L.won(b.name);
+    return L.draw;
   }
 
   function moveHtml(move) {
@@ -222,17 +250,17 @@
         return '<li><span class="opp">' + esc(c[0].name) + '</span><span class="score">' + (c[1] ? esc(c[1]) : "–") + "</span></li>";
       }).join("") + "</ul>";
     var chip = h.state === "result"
-      ? '<span class="chip ' + h.outcome + '">' + (h.outcome || "?").charAt(0).toUpperCase() + "</span>"
+      ? '<span class="chip ' + h.outcome + '">' + (cmpData.letters[h.outcome] || "?") + "</span>"
       : h.state === "ongoing" ? '<span class="chip live">•</span>' : "";
     var rows = compareRows(a, b).map(function (r) {
       return '<div class="cmp-row"><b class="a' + (r[3] === "a" ? " better" : "") + '">' + esc(r[1]) + "</b>" +
         "<span>" + esc(r[0]) + "</span>" +
         '<b class="b' + (r[3] === "b" ? " better" : "") + '">' + esc(r[2]) + "</b></div>";
     }).join("");
-    return '<div class="cmp-head">' + compareSide(a, "a") + '<span class="cmp-vs">VS</span>' + compareSide(b, "b") + "</div>" +
-      '<div class="pc-block"><h4>Head-to-head</h4><p class="cmp-h2h">' + chip + "<span>" + esc(h2hSummary(a, b, h)) + "</span></p>" + cells + "</div>" +
+    return '<div class="cmp-head">' + compareSide(a, "a") + '<span class="cmp-vs">' + L.vs + '</span>' + compareSide(b, "b") + "</div>" +
+      '<div class="pc-block"><h4>' + L.h2h + '</h4><p class="cmp-h2h">' + chip + "<span>" + esc(h2hSummary(a, b, h)) + "</span></p>" + cells + "</div>" +
       '<div class="pc-block cmp-rows">' + rows + "</div>" +
-      '<div class="pc-block pc-insights"><h4>Player Insights</h4><p class="pc-sub">Season to date · scores out of 10</p>' +
+      '<div class="pc-block pc-insights"><h4>' + L.insights + '</h4><p class="pc-sub">' + L.sub + "</p>" +
       compareRadar(a, b) + "</div>";
   }
 
@@ -316,7 +344,7 @@
   function shareCard(dlg, btn) {
     var data = JSON.parse(dlg.getAttribute("data-share"));
     share(prepareCard(dlg), btn, "pj-cup-" + data.slug.replace(/^player-/, "") + ".png",
-      data.name + " · " + data.site, "https://" + data.url + "/#" + data.slug);
+      data.name + " · " + data.site, data.page + "#" + data.slug);
   }
 
   function shareCompare(btn) {
@@ -326,7 +354,7 @@
     var players = comparePlayers(keys[0], keys[1]);
     share(prepareCompare(keys[0], keys[1]), btn, "pj-cup-" + pair + ".png",
       players[0].name + " vs " + players[1].name + " · " + cmpData.site,
-      "https://" + cmpData.url + "/#compare-" + pair);
+      cmpData.page + "#compare-" + pair);
   }
 
   function share(image, btn, filename, title, link) {
@@ -418,7 +446,7 @@
     }
     var hx = img ? 180 : 60;
     text(ctx, site.toUpperCase(), hx, 98, 34, C.fg, "800");
-    text(ctx, "Snapshot " + date, hx, 138, 26, C.muted);
+    text(ctx, L.snapshot + date, hx, 138, 26, C.muted);
 
     ctx.fillStyle = C.line;
     ctx.fillRect(60, 1288, W - 120, 2);
@@ -480,13 +508,13 @@
   }
 
   function drawCard(d, img) {
-    var frame = drawFrame(img, d.site, d.date, d.url, "Season to date · scores out of 10");
+    var frame = drawFrame(img, d.site, d.date, d.url, L.sub);
     var canvas = frame.canvas, ctx = frame.ctx;
 
     // name, rank, record
     text(ctx, d.name, 60, 300, 110, C.fg, "800");
     ctx.font = "700 36px " + FONT;
-    var rankStr = "RANK #" + d.rank;
+    var rankStr = L.rankNo + d.rank;
     text(ctx, rankStr, 60, 362, 36, C.accent, "700");
     var x = 60 + ctx.measureText(rankStr).width + 18;
     if (d.move !== null && d.move !== undefined) {
@@ -510,7 +538,7 @@
     });
 
     // radar
-    text(ctx, "PLAYER INSIGHTS", W / 2, 700, 40, C.fg, "800", "center");
+    text(ctx, L.insightsCaps, W / 2, 700, 40, C.fg, "800", "center");
     var cx = W / 2, cy = 1000, R = 160, LR = 196;
     drawRadarGrid(ctx, cx, cy, R);
     drawShape(ctx, cx, cy, R, d.axes, C.shapeFill, C.accent, 7);
@@ -529,23 +557,23 @@
   }
 
   function drawCompare(a, b, img) {
-    var frame = drawFrame(img, cmpData.site, cmpData.date, cmpData.url, "Season to date · insights out of 10");
+    var frame = drawFrame(img, cmpData.site, cmpData.date, cmpData.url, L.cmpNote);
     var canvas = frame.canvas, ctx = frame.ctx;
 
     // names, ranks, records
     var size = Math.min(fitSize(ctx, a.name, 84, 40, 420, "800"), fitSize(ctx, b.name, 84, 40, 420, "800"));
     text(ctx, a.name, 60, 270, size, C.accent, "800");
     text(ctx, b.name, W - 60, 270, size, C.b, "800", "right");
-    text(ctx, "VS", W / 2, 262, 36, C.muted, "800", "center");
-    text(ctx, "RANK #" + a.rank + "  ·  " + a.w + "W " + a.d + "D " + a.l + "L", 60, 322, 28, C.muted, "700");
-    text(ctx, "RANK #" + b.rank + "  ·  " + b.w + "W " + b.d + "D " + b.l + "L", W - 60, 322, 28, C.muted, "700", "right");
+    text(ctx, L.vs, W / 2, 262, 36, C.muted, "800", "center");
+    text(ctx, L.rankNo + a.rank + "  ·  " + L.record(a), 60, 322, 28, C.muted, "700");
+    text(ctx, L.rankNo + b.rank + "  ·  " + L.record(b), W - 60, 322, 28, C.muted, "700", "right");
 
     // head-to-head
     var h = headToHead(a.key, b.key);
     roundRect(ctx, 60, 348, W - 120, 76, 16);
     ctx.fillStyle = C.tile;
     ctx.fill();
-    text(ctx, "HEAD-TO-HEAD", 90, 395, 24, C.muted, "700");
+    text(ctx, L.h2hCaps, 90, 395, 24, C.muted, "700");
     var hc = h.state === "result" ? C[h.outcome] || C.fg : h.state === "ongoing" ? C.draw : C.muted;
     var summary = h2hSummary(a, b, h) + (h.ab ? "  ·  " + h.ab : h.ba ? "  ·  " + h.ba : "");
     text(ctx, summary, W - 90, 397, fitSize(ctx, summary, 34, 22, 640, "800"), hc, "800", "right");
