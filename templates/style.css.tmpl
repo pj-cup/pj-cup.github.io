@@ -20,6 +20,9 @@
   --radar-grid: rgba(160, 190, 230, 0.55);
   --radar-fill: rgba(200, 230, 60, 0.55);
   --radar-accent: #e4f53b;
+  --cmp-a-fill: rgba(200, 230, 60, 0.35);
+  --cmp-b: #4cc9f0;
+  --cmp-b-fill: rgba(76, 201, 240, 0.35);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -581,6 +584,149 @@ html:not(.pc-js) dialog.player-card:target {
 .pc-share[hidden] {
   display: none;
 }
+
+/* player compare (one dialog, filled in by player-card.js) */
+.pc-compare {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.6rem;
+  color: var(--card-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pc-compare[hidden] {
+  display: none;
+}
+
+.pc-compare select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--card-line);
+  border-radius: 10px;
+  background: var(--card-tile);
+  color: var(--card-fg);
+  font: inherit;
+  font-weight: 700;
+}
+
+.pc-compare select option {
+  background: var(--card-bg);
+  color: var(--card-fg);
+}
+
+.cmp-title {
+  flex: 1;
+  margin: 0;
+  color: var(--card-muted);
+  font-size: 0.8rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cmp-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.cmp-side .player-link {
+  display: block;
+  margin-top: 0.4rem;
+  border-bottom: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.cmp-side.a .player-link { color: var(--radar-accent); }
+.cmp-side.b { text-align: right; }
+.cmp-side.b .player-link { color: var(--cmp-b); }
+.cmp-side.b .pc-rank { background: var(--cmp-b); }
+
+.cmp-side .pc-rank {
+  width: 2.1rem;
+  height: 2.1rem;
+  font-size: 0.95rem;
+}
+
+.cmp-vs {
+  align-self: center;
+  color: var(--card-muted);
+  font-weight: 800;
+}
+
+.cmp-h2h {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+}
+
+.cmp-rows {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.cmp-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.cmp-row:nth-child(odd) {
+  background: var(--card-tile);
+}
+
+.cmp-row span {
+  color: var(--card-muted);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.cmp-row b {
+  font-weight: 600;
+}
+
+.cmp-row b.b {
+  text-align: right;
+}
+
+.cmp-row b.better {
+  font-weight: 800;
+}
+
+.cmp-row b.a.better { color: var(--radar-accent); }
+.cmp-row b.b.better { color: var(--cmp-b); }
+
+.rg-shape.a {
+  fill: var(--cmp-a-fill);
+}
+
+.rg-shape.b {
+  fill: var(--cmp-b-fill);
+  stroke: var(--cmp-b);
+}
+
+.rg-value.cmp {
+  font-size: 18px;
+}
+
+.rg-value.cmp .a { fill: var(--radar-accent); }
+.rg-value.cmp .b { fill: var(--cmp-b); }
+.rg-value.cmp .sep { fill: var(--card-muted); }
 
 @media (prefers-reduced-motion: no-preference) {
   dialog.player-card[open] .rg-shape {

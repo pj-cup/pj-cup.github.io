@@ -248,7 +248,7 @@ SITE_TITLE = "PJ Cup Season1"
 
 def render_page(
     standings_html, rules_html, h2h_html, source_path, snapshot_date, standings_note="",
-    player_cards="",
+    player_cards="", compare="",
 ):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
     title = SITE_TITLE
@@ -265,6 +265,7 @@ def render_page(
         rules_section=rules_html,
         h2h_table=h2h_html,
         player_cards=player_cards,
+        compare=compare,
     )
 
 
@@ -290,6 +291,11 @@ GAMES_PER_SET = 4
 
 def player_slug(name):
     return "player-" + (re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "x")
+
+
+def compare_key(name):
+    """Player slug without the prefix; compare deep links are #compare-<a>-vs-<b>."""
+    return player_slug(name).removeprefix("player-")
 
 
 def render_player_link(name):
@@ -423,7 +429,18 @@ def render_tiles(tiles, extra_cls=""):
     ) + "</div>"
 
 
-def render_player_card(row, players, grid, move, prev_row, prev_label, snapshot_date):
+def render_compare_picker(name, standings):
+    options = "".join(
+        f'<option value="{compare_key(s["name"])}">{html.escape(s["name"])}</option>'
+        for s in standings if s["name"] != name
+    )
+    return (
+        f'<label class="pc-compare" hidden><span>Compare with</span>'
+        f'<select><option value="">Choose player…</option>{options}</select></label>'
+    )
+
+
+def render_player_card(row, players, grid, move, prev_row, prev_label, snapshot_date, standings):
     name = row["name"]
     slug = player_slug(name)
     stats = player_match_stats(name, players, grid)
@@ -503,7 +520,8 @@ def render_player_card(row, players, grid, move, prev_row, prev_label, snapshot_
         f'<p class="pc-sub">Season to date · scores out of 10</p>{render_radar_svg(insights)}</div>'
         + since_html
         + f'<div class="pc-block"><h4>Results</h4>{results_html}</div>'
-        f'<div class="pc-actions"><button class="pc-share" type="button" hidden>Share card image</button></div>'
+        + f'<div class="pc-actions">{render_compare_picker(name, standings)}'
+        f'<button class="pc-share" type="button" hidden>Share card image</button></div>'
         f"</div></dialog>"
     )
 
@@ -513,11 +531,63 @@ def render_player_cards(standings, players, grid, moves, prev_standings, prev_la
     cards = [
         render_player_card(
             row, players, grid, (moves or {}).get(row["name"]),
-            prev_rows.get(row["name"]), prev_label, snapshot_date,
+            prev_rows.get(row["name"]), prev_label, snapshot_date, standings,
         )
         for row in standings
     ]
     return "\n".join(cards)
+
+
+# ---------- player compare (index.html only; filled in by player-card.js) ----------
+
+
+def build_compare_data(standings, players, grid, moves, snapshot_date):
+    """Per-player stats + head-to-head cells for any pair, as JSON for the compare dialog."""
+    data = {}
+    for row in standings:
+        name = row["name"]
+        move = (moves or {}).get(name)
+        stats = player_match_stats(name, players, grid)
+        insights = player_insights(row, stats, move)
+        data[compare_key(name)] = {
+            "name": name,
+            "rank": row["rank"],
+            "move": move,
+            "record": f'{row["w"]}W · {row["d"]}D · {row["l"]}L',
+            **{key: to_int(row[key]) for key in ("mp", "w", "d", "l", "pts", "gf", "ga", "gd")},
+            "ppm": format_pts_per_match(row),
+            **{key: stats[key] for key in ("sets_w", "sets_l", "close_w", "close_l")},
+            "axes": [[axis, None if v is None else round(v, 1)] for axis, v in insights],
+            "top": top_axis(insights),
+        }
+    h2h = {}
+    for a in players:
+        for b in players:
+            cls, text, _ = classify_cell(grid.get(a, {}).get(b, ""), a, b)
+            if cls in ("result", "ongoing"):
+                h2h.setdefault(compare_key(a), {})[compare_key(b)] = [cls, text, cell_outcome(text) if cls == "result" else ""]
+    return {
+        "players": data,
+        "h2h": h2h,
+        "axes": list(INSIGHT_AXES),
+        "date": snapshot_date,
+        "site": SITE_TITLE,
+        "url": SITE_URL.removeprefix("https://").rstrip("/"),
+    }
+
+
+def render_compare(compare_data):
+    payload = json.dumps(compare_data, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
+    return (
+        '<dialog class="player-card compare-card" id="compare" aria-labelledby="compare-title">'
+        '<div class="pc-inner">'
+        '<div class="pc-head"><h3 class="cmp-title" id="compare-title">Compare</h3>'
+        '<a class="pc-close" href="#" aria-label="Close">&times;</a></div>'
+        '<div class="cmp-body"></div>'
+        '<div class="pc-actions"><button class="pc-share" type="button" hidden>Share compare image</button></div>'
+        "</div></dialog>\n"
+        f'<script type="application/json" id="compare-data">{payload}</script>'
+    )
 
 
 def render_title_letters(title):
@@ -650,9 +720,12 @@ def main():
     player_cards = render_player_cards(
         standings, players, grid, moves, prev_standings, prev_label, snapshot_date
     )
+    compare_html = render_compare(
+        build_compare_data(standings, players, grid, moves, snapshot_date)
+    )
     page_html = render_page(
         standings_html, rules_html, h2h_html, latest, snapshot_date, standings_note,
-        player_cards,
+        player_cards, compare_html,
     )
 
     DOCS_DIR.mkdir(exist_ok=True)

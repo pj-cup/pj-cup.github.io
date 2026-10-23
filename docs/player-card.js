@@ -10,7 +10,12 @@
 
   var FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
   var current = null;
-  var rendered = {}; // slug -> Promise<Blob|null>, so a share tap can stay synchronous
+  var rendered = {}; // key -> Promise<Blob|null>, so a share tap can stay synchronous
+  var cmpDlg = document.getElementById("compare");
+  var cmpData = null;
+  try {
+    cmpData = JSON.parse(document.getElementById("compare-data").textContent);
+  } catch (e) {}
 
   function cardFor(hash) {
     if (!hash || hash.indexOf("#player-") !== 0) return null;
@@ -24,12 +29,16 @@
     } catch (e) {}
   }
 
-  function open(dlg) {
+  function show(dlg, hash) {
     if (current && current !== dlg && current.open) current.close();
     if (!dlg.open) dlg.showModal();
     current = dlg;
-    setHash("#" + dlg.id);
-    prepareImage(dlg);
+    setHash(hash);
+  }
+
+  function open(dlg) {
+    show(dlg, "#" + dlg.id);
+    prepareCard(dlg);
   }
 
   document.addEventListener("click", function (e) {
@@ -59,12 +68,205 @@
         setHash("");
       }
     });
+    if (dlg === cmpDlg) return;
     var btn = dlg.querySelector(".pc-share");
     if (btn) {
       btn.hidden = false;
-      btn.addEventListener("click", function () { share(dlg, btn); });
+      btn.addEventListener("click", function () { shareCard(dlg, btn); });
+    }
+    var picker = dlg.querySelector(".pc-compare");
+    if (picker && cmpDlg && cmpData) {
+      picker.hidden = false;
+      var select = picker.querySelector("select");
+      select.addEventListener("change", function () {
+        var other = select.value;
+        select.value = "";
+        if (other) openCompare(dlg.id.replace(/^player-/, ""), other);
+      });
     }
   });
+
+  if (cmpDlg && cmpData) {
+    var cmpBtn = cmpDlg.querySelector(".pc-share");
+    cmpBtn.hidden = false;
+    cmpBtn.addEventListener("click", function () { shareCompare(cmpBtn); });
+  }
+
+  /* ---------- compare two players ---------- */
+
+  function esc(str) {
+    return String(str).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function ratio(won, lost) {
+    return won + lost ? won / (won + lost) : null;
+  }
+
+  function signed(n) {
+    return n === null ? "–" : n > 0 ? "+" + n : n < 0 ? "−" + -n : "0";
+  }
+
+  // [label, display(p), score(p) for "better" (null = no data), direction: 1 higher wins, -1 lower wins, 0 not compared]
+  var ROWS = [
+    ["RANK", function (p) { return "#" + p.rank; }, function (p) { return parseInt(p.rank, 10); }, -1],
+    ["MP", function (p) { return p.mp; }, null, 0],
+    ["W–D–L", function (p) { return p.w + "–" + p.d + "–" + p.l; }, null, 0],
+    ["PTS", function (p) { return p.pts; }, function (p) { return p.pts; }, 1],
+    ["PTS/MP", function (p) { return p.ppm; }, function (p) { return p.mp ? p.pts / p.mp : null; }, 1],
+    ["SETS W–L", function (p) { return p.sets_w + "–" + p.sets_l; }, function (p) { return ratio(p.sets_w, p.sets_l); }, 1],
+    ["CLOSE W–L", function (p) { return p.close_w + p.close_l ? p.close_w + "–" + p.close_l : "–"; }, function (p) { return ratio(p.close_w, p.close_l); }, 1],
+    ["GF", function (p) { return p.gf; }, function (p) { return p.gf; }, 1],
+    ["GA", function (p) { return p.ga; }, function (p) { return p.mp ? p.ga : null; }, -1], // 0 conceded in 0 matches is no merit
+    ["GD", function (p) { return signed(p.gd); }, function (p) { return p.gd; }, 1]
+  ];
+
+  // Rows with the winning side: "a", "b" or "" (tie, no data, or not compared).
+  function compareRows(a, b) {
+    return ROWS.map(function (r) {
+      var better = "";
+      if (r[2] && r[3]) {
+        var sa = r[2](a), sb = r[2](b);
+        if (sa !== null && sb !== null && !isNaN(sa) && !isNaN(sb) && sa !== sb) {
+          better = (sa - sb) * r[3] > 0 ? "a" : "b";
+        }
+      }
+      var va = r[1](a), vb = r[1](b);
+      return [r[0], va === null ? "–" : String(va), vb === null ? "–" : String(vb), better];
+    });
+  }
+
+  // Their meeting, from A's perspective; both mirrored cells kept as-is.
+  function headToHead(ka, kb) {
+    var ab = (cmpData.h2h[ka] || {})[kb] || null;
+    var ba = (cmpData.h2h[kb] || {})[ka] || null;
+    var cell = ab || ba;
+    var flip = { win: "loss", loss: "win", draw: "draw" };
+    return {
+      ab: ab ? ab[1] : "",
+      ba: ba ? ba[1] : "",
+      state: cell ? cell[0] : "none",
+      outcome: ab ? ab[2] : ba ? flip[ba[2]] || "" : ""
+    };
+  }
+
+  function h2hSummary(a, b, h) {
+    if (h.state === "none") return "Not played yet";
+    if (h.state === "ongoing") return "In progress — not yet counted";
+    if (h.outcome === "win") return a.name + " won";
+    if (h.outcome === "loss") return b.name + " won";
+    return "Draw";
+  }
+
+  function moveHtml(move) {
+    if (move === null || move === undefined) return "";
+    var cls = move > 0 ? "up" : move < 0 ? "down" : "same";
+    var txt = move > 0 ? "▲" + move : move < 0 ? "▼" + -move : "–";
+    return ' <span class="rank-move ' + cls + '">' + txt + "</span>";
+  }
+
+  function compareRadar(a, b) {
+    var cx = 190, cy = 180, r = 95, lr = 114;
+    function pt(radius, i) { return point(cx, cy, radius, i); }
+    function ring(frac) {
+      var out = [];
+      for (var i = 0; i < 6; i++) out.push(pt(r * frac, i).map(function (n) { return n.toFixed(1); }).join(","));
+      return out.join(" ");
+    }
+    function shape(p) {
+      return p.axes.map(function (ax, i) {
+        return pt(r * (ax[1] || 0) / 10, i).map(function (n) { return n.toFixed(1); }).join(",");
+      }).join(" ");
+    }
+    function fmt(v) { return v === null ? "–" : v.toFixed(1); }
+    var label = cmpData.axes.map(function (ax, i) {
+      return ax.charAt(0) + ax.slice(1).toLowerCase() + " " + fmt(a.axes[i][1]) + " vs " + fmt(b.axes[i][1]);
+    }).join(", ");
+    var parts = ['<svg class="radar" viewBox="0 0 380 360" role="img" aria-label="' + esc(label) + '">',
+      '<polygon class="rg-area" points="' + ring(1) + '"/>'];
+    [0.25, 0.5, 0.75].forEach(function (f) { parts.push('<polygon class="rg-ring" points="' + ring(f) + '"/>'); });
+    for (var i = 0; i < 6; i++) {
+      var p = pt(r, i);
+      parts.push('<line class="rg-spoke" x1="' + cx + '" y1="' + cy + '" x2="' + p[0].toFixed(1) + '" y2="' + p[1].toFixed(1) + '"/>');
+    }
+    parts.push('<polygon class="rg-outer" points="' + ring(1) + '"/>');
+    parts.push('<polygon class="rg-shape a" points="' + shape(a) + '"/>');
+    parts.push('<polygon class="rg-shape b" points="' + shape(b) + '"/>');
+    cmpData.axes.forEach(function (ax, i) {
+      var p = pt(lr, i), anchor, ly, vy;
+      if (i === 0) { anchor = "middle"; ly = p[1] - 30; vy = p[1] - 4; }
+      else if (i === 3) { anchor = "middle"; ly = p[1] + 10; vy = p[1] + 34; }
+      else { anchor = i < 3 ? "start" : "end"; ly = p[1] - 6; vy = p[1] + 18; }
+      parts.push(
+        '<text class="rg-label" x="' + p[0].toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="' + anchor + '">' + ax + "</text>" +
+        '<text class="rg-value cmp" x="' + p[0].toFixed(1) + '" y="' + vy.toFixed(1) + '" text-anchor="' + anchor + '">' +
+        '<tspan class="a">' + fmt(a.axes[i][1]) + '</tspan><tspan class="sep"> · </tspan><tspan class="b">' + fmt(b.axes[i][1]) + "</tspan></text>"
+      );
+    });
+    parts.push("</svg>");
+    return parts.join("");
+  }
+
+  function compareSide(p, side) {
+    return '<div class="cmp-side ' + side + '"><span class="pc-rank">' + esc(p.rank) + "</span>" +
+      '<a class="player-link" href="#player-' + esc(p.key) + '">' + esc(p.name) + "</a>" +
+      '<p class="pc-record">' + esc(p.record) + moveHtml(p.move) + "</p></div>";
+  }
+
+  function renderCompare(a, b) {
+    var h = headToHead(a.key, b.key);
+    var cells = h.state === "none" ? "" :
+      '<ul class="pc-results">' +
+      [[a, h.ab], [b, h.ba]].map(function (c) {
+        return '<li><span class="opp">' + esc(c[0].name) + '</span><span class="score">' + (c[1] ? esc(c[1]) : "–") + "</span></li>";
+      }).join("") + "</ul>";
+    var chip = h.state === "result"
+      ? '<span class="chip ' + h.outcome + '">' + (h.outcome || "?").charAt(0).toUpperCase() + "</span>"
+      : h.state === "ongoing" ? '<span class="chip live">•</span>' : "";
+    var rows = compareRows(a, b).map(function (r) {
+      return '<div class="cmp-row"><b class="a' + (r[3] === "a" ? " better" : "") + '">' + esc(r[1]) + "</b>" +
+        "<span>" + esc(r[0]) + "</span>" +
+        '<b class="b' + (r[3] === "b" ? " better" : "") + '">' + esc(r[2]) + "</b></div>";
+    }).join("");
+    return '<div class="cmp-head">' + compareSide(a, "a") + '<span class="cmp-vs">VS</span>' + compareSide(b, "b") + "</div>" +
+      '<div class="pc-block"><h4>Head-to-head</h4><p class="cmp-h2h">' + chip + "<span>" + esc(h2hSummary(a, b, h)) + "</span></p>" + cells + "</div>" +
+      '<div class="pc-block cmp-rows">' + rows + "</div>" +
+      '<div class="pc-block pc-insights"><h4>Player Insights</h4><p class="pc-sub">Season to date · scores out of 10</p>' +
+      compareRadar(a, b) + "</div>";
+  }
+
+  function comparePlayers(ka, kb) {
+    var a = cmpData.players[ka], b = cmpData.players[kb];
+    if (!a || !b || ka === kb) return null;
+    a.key = ka;
+    b.key = kb;
+    return [a, b];
+  }
+
+  function openCompare(ka, kb) {
+    var pair = comparePlayers(ka, kb);
+    if (!pair) return;
+    cmpDlg.querySelector(".cmp-title").textContent = pair[0].name + " vs " + pair[1].name;
+    cmpDlg.querySelector(".cmp-body").innerHTML = renderCompare(pair[0], pair[1]);
+    cmpDlg.setAttribute("data-pair", ka + "-vs-" + kb);
+    show(cmpDlg, "#compare-" + ka + "-vs-" + kb);
+    cmpDlg.scrollTop = 0;
+    prepareCompare(ka, kb);
+  }
+
+  // "#compare-<a>-vs-<b>": match against known keys so a name containing "-vs-" can't mis-split.
+  function compareFor(hash) {
+    if (!cmpData || !cmpDlg || !hash || hash.indexOf("#compare-") !== 0) return null;
+    var rest = decodeURIComponent(hash.slice("#compare-".length));
+    for (var ka in cmpData.players) {
+      if (rest.indexOf(ka + "-vs-") === 0) {
+        var kb = rest.slice(ka.length + 4);
+        if (comparePlayers(ka, kb)) return [ka, kb];
+      }
+    }
+    return null;
+  }
 
   /* ---------- share card as a PNG ---------- */
 
@@ -75,18 +277,29 @@
     img.src = "logo.png";
   });
 
-  function prepareImage(dlg) {
-    if (!rendered[dlg.id]) {
-      var data = JSON.parse(dlg.getAttribute("data-share"));
-      rendered[dlg.id] = logo.then(function (img) {
+  function prepareImage(key, draw) {
+    if (!rendered[key]) {
+      rendered[key] = logo.then(function (img) {
         return new Promise(function (resolve) {
-          var canvas = drawCard(data, img);
+          var canvas = draw(img);
           if (!canvas.toBlob) return resolve(null);
           canvas.toBlob(function (blob) { resolve(blob); }, "image/png");
         });
       }).catch(function () { return null; });
     }
-    return rendered[dlg.id];
+    return rendered[key];
+  }
+
+  function prepareCard(dlg) {
+    var data = JSON.parse(dlg.getAttribute("data-share"));
+    return prepareImage(dlg.id, function (img) { return drawCard(data, img); });
+  }
+
+  function prepareCompare(ka, kb) {
+    var pair = comparePlayers(ka, kb);
+    return prepareImage("compare-" + ka + "-vs-" + kb, function (img) {
+      return drawCompare(pair[0], pair[1], img);
+    });
   }
 
   function download(blob, filename) {
@@ -100,19 +313,33 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 10000);
   }
 
-  function share(dlg, btn) {
+  function shareCard(dlg, btn) {
     var data = JSON.parse(dlg.getAttribute("data-share"));
-    var filename = "pj-cup-" + data.slug.replace(/^player-/, "") + ".png";
+    share(prepareCard(dlg), btn, "pj-cup-" + data.slug.replace(/^player-/, "") + ".png",
+      data.name + " · " + data.site, "https://" + data.url + "/#" + data.slug);
+  }
+
+  function shareCompare(btn) {
+    var pair = cmpDlg.getAttribute("data-pair");
+    var keys = compareFor("#compare-" + pair);
+    if (!keys) return;
+    var players = comparePlayers(keys[0], keys[1]);
+    share(prepareCompare(keys[0], keys[1]), btn, "pj-cup-" + pair + ".png",
+      players[0].name + " vs " + players[1].name + " · " + cmpData.site,
+      "https://" + cmpData.url + "/#compare-" + pair);
+  }
+
+  function share(image, btn, filename, title, link) {
     btn.disabled = true;
-    prepareImage(dlg).then(function (blob) {
+    image.then(function (blob) {
       btn.disabled = false;
       if (!blob) return;
       var file = typeof File === "function" ? new File([blob], filename, { type: "image/png" }) : null;
       if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
         navigator.share({
           files: [file],
-          title: data.name + " · " + data.site,
-          text: data.name + " · " + data.site + " — https://" + data.url + "/#" + data.slug
+          title: title,
+          text: title + " — " + link
         }).catch(function (err) {
           if (err && err.name !== "AbortError") download(blob, filename);
         });
@@ -129,7 +356,9 @@
     tile: "rgba(255,255,255,0.07)", line: "rgba(255,255,255,0.12)",
     area: "rgba(58,98,150,0.45)", grid: "rgba(160,190,230,0.55)",
     shapeFill: "rgba(200,230,60,0.55)", accent: "#e4f53b",
-    up: "#34d27b", down: "#f0625f"
+    up: "#34d27b", down: "#f0625f",
+    shapeFillA: "rgba(200,230,60,0.35)", b: "#4cc9f0", shapeFillB: "rgba(76,201,240,0.35)",
+    win: "#34d27b", draw: "#f0b429", loss: "#f0625f"
   };
 
   function roundRect(ctx, x, y, w, h, r) {
@@ -163,8 +392,10 @@
     ctx.closePath();
   }
 
-  function drawCard(d, img) {
-    var W = 1080, H = 1350;
+  var W = 1080, H = 1350;
+
+  // Background, header (logo, site, snapshot date) and footer shared by both share images.
+  function drawFrame(img, site, date, url, note) {
     var canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
@@ -176,7 +407,6 @@
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, W, H);
 
-    // header: logo, site, snapshot date
     if (img) {
       ctx.save();
       roundRect(ctx, 60, 56, 96, 96, 18);
@@ -187,8 +417,71 @@
       ctx.restore();
     }
     var hx = img ? 180 : 60;
-    text(ctx, d.site.toUpperCase(), hx, 98, 34, C.fg, "800");
-    text(ctx, "Snapshot " + d.date, hx, 138, 26, C.muted);
+    text(ctx, site.toUpperCase(), hx, 98, 34, C.fg, "800");
+    text(ctx, "Snapshot " + date, hx, 138, 26, C.muted);
+
+    ctx.fillStyle = C.line;
+    ctx.fillRect(60, 1288, W - 120, 2);
+    text(ctx, url, 60, 1326, 26, C.muted, "600");
+    text(ctx, note, W - 60, 1326, 24, C.muted, "400", "right");
+    return { canvas: canvas, ctx: ctx };
+  }
+
+  // Hexagon grid (area, rings, spokes, dashed outline, corner dots).
+  function drawRadarGrid(ctx, cx, cy, R) {
+    hexPath(ctx, cx, cy, R);
+    ctx.fillStyle = C.area;
+    ctx.fill();
+    ctx.strokeStyle = C.grid;
+    ctx.lineWidth = 2;
+    [0.25, 0.5, 0.75].forEach(function (f) {
+      hexPath(ctx, cx, cy, R * f);
+      ctx.globalAlpha = 0.35;
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    });
+    for (var i = 0; i < 6; i++) {
+      var p = point(cx, cy, R, i);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(p[0], p[1]);
+      ctx.stroke();
+    }
+    ctx.setLineDash([10, 8]);
+    hexPath(ctx, cx, cy, R);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = C.grid;
+    for (i = 0; i < 6; i++) {
+      p = point(cx, cy, R, i);
+      ctx.beginPath();
+      ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawShape(ctx, cx, cy, R, axes, fill, stroke, width) {
+    hexPath(ctx, cx, cy, R, axes.map(function (a) { return a[1] === null ? 0 : a[1]; }));
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = width;
+    ctx.lineJoin = "round";
+    ctx.stroke();
+  }
+
+  // Largest font size (down to min) at which str fits in maxWidth.
+  function fitSize(ctx, str, size, min, maxWidth, weight) {
+    for (; size > min; size -= 4) {
+      ctx.font = weight + " " + size + "px " + FONT;
+      if (ctx.measureText(str).width <= maxWidth) break;
+    }
+    return size;
+  }
+
+  function drawCard(d, img) {
+    var frame = drawFrame(img, d.site, d.date, d.url, "Season to date · scores out of 10");
+    var canvas = frame.canvas, ctx = frame.ctx;
 
     // name, rank, record
     text(ctx, d.name, 60, 300, 110, C.fg, "800");
@@ -219,43 +512,8 @@
     // radar
     text(ctx, "PLAYER INSIGHTS", W / 2, 700, 40, C.fg, "800", "center");
     var cx = W / 2, cy = 1000, R = 160, LR = 196;
-    hexPath(ctx, cx, cy, R);
-    ctx.fillStyle = C.area;
-    ctx.fill();
-    ctx.strokeStyle = C.grid;
-    ctx.lineWidth = 2;
-    [0.25, 0.5, 0.75].forEach(function (f) {
-      hexPath(ctx, cx, cy, R * f);
-      ctx.globalAlpha = 0.35;
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-    });
-    for (var i = 0; i < 6; i++) {
-      var p = point(cx, cy, R, i);
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(p[0], p[1]);
-      ctx.stroke();
-    }
-    ctx.setLineDash([10, 8]);
-    hexPath(ctx, cx, cy, R);
-    ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = C.grid;
-    for (i = 0; i < 6; i++) {
-      p = point(cx, cy, R, i);
-      ctx.beginPath();
-      ctx.arc(p[0], p[1], 6, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    var values = d.axes.map(function (a) { return a[1] === null ? 0 : a[1]; });
-    hexPath(ctx, cx, cy, R, values);
-    ctx.fillStyle = C.shapeFill;
-    ctx.fill();
-    ctx.strokeStyle = C.accent;
-    ctx.lineWidth = 7;
-    ctx.lineJoin = "round";
-    ctx.stroke();
+    drawRadarGrid(ctx, cx, cy, R);
+    drawShape(ctx, cx, cy, R, d.axes, C.shapeFill, C.accent, 7);
 
     d.axes.forEach(function (a, i) {
       var p = point(cx, cy, LR, i), align, ly, vy;
@@ -267,18 +525,72 @@
       text(ctx, a[1] === null ? "–" : a[1].toFixed(1), p[0], vy, 54, top ? C.accent : C.fg, "800", align);
     });
 
-    // footer
-    ctx.fillStyle = C.line;
-    ctx.fillRect(60, 1288, W - 120, 2);
-    text(ctx, d.url, 60, 1326, 26, C.muted, "600");
-    text(ctx, "Season to date · scores out of 10", W - 60, 1326, 24, C.muted, "400", "right");
+    return canvas;
+  }
+
+  function drawCompare(a, b, img) {
+    var frame = drawFrame(img, cmpData.site, cmpData.date, cmpData.url, "Season to date · insights out of 10");
+    var canvas = frame.canvas, ctx = frame.ctx;
+
+    // names, ranks, records
+    var size = Math.min(fitSize(ctx, a.name, 84, 40, 420, "800"), fitSize(ctx, b.name, 84, 40, 420, "800"));
+    text(ctx, a.name, 60, 270, size, C.accent, "800");
+    text(ctx, b.name, W - 60, 270, size, C.b, "800", "right");
+    text(ctx, "VS", W / 2, 262, 36, C.muted, "800", "center");
+    text(ctx, "RANK #" + a.rank + "  ·  " + a.w + "W " + a.d + "D " + a.l + "L", 60, 322, 28, C.muted, "700");
+    text(ctx, "RANK #" + b.rank + "  ·  " + b.w + "W " + b.d + "D " + b.l + "L", W - 60, 322, 28, C.muted, "700", "right");
+
+    // head-to-head
+    var h = headToHead(a.key, b.key);
+    roundRect(ctx, 60, 348, W - 120, 76, 16);
+    ctx.fillStyle = C.tile;
+    ctx.fill();
+    text(ctx, "HEAD-TO-HEAD", 90, 395, 24, C.muted, "700");
+    var hc = h.state === "result" ? C[h.outcome] || C.fg : h.state === "ongoing" ? C.draw : C.muted;
+    var summary = h2hSummary(a, b, h) + (h.ab ? "  ·  " + h.ab : h.ba ? "  ·  " + h.ba : "");
+    text(ctx, summary, W - 90, 397, fitSize(ctx, summary, 34, 22, 640, "800"), hc, "800", "right");
+
+    // overlaid radar
+    var cx = W / 2, cy = 676, R = 135, LR = 168;
+    drawRadarGrid(ctx, cx, cy, R);
+    drawShape(ctx, cx, cy, R, a.axes, C.shapeFillA, C.accent, 6);
+    drawShape(ctx, cx, cy, R, b.axes, C.shapeFillB, C.b, 6);
+    cmpData.axes.forEach(function (ax, i) {
+      var p = point(cx, cy, LR, i), align, ly, vy;
+      if (i === 0) { align = "center"; ly = p[1] - 46; vy = p[1] - 6; }
+      else if (i === 3) { align = "center"; ly = p[1] + 26; vy = p[1] + 64; }
+      else { align = i < 3 ? "left" : "right"; ly = p[1] - 8; vy = p[1] + 34; }
+      text(ctx, ax, p[0], ly, 22, C.fg, "700", align);
+      var va = a.axes[i][1] === null ? "–" : a.axes[i][1].toFixed(1);
+      var vb = b.axes[i][1] === null ? "–" : b.axes[i][1].toFixed(1);
+      ctx.font = "800 34px " + FONT;
+      var wa = ctx.measureText(va).width, ws = ctx.measureText(" · ").width, wb = ctx.measureText(vb).width;
+      var x0 = align === "left" ? p[0] : align === "right" ? p[0] - wa - ws - wb : p[0] - (wa + ws + wb) / 2;
+      text(ctx, va, x0, vy, 34, C.accent, "800");
+      text(ctx, " · ", x0 + wa, vy, 34, C.muted, "800");
+      text(ctx, vb, x0 + wa + ws, vy, 34, C.b, "800");
+    });
+
+    // stat rows
+    compareRows(a, b).forEach(function (r, i) {
+      var y = 955 + i * 32;
+      if (i % 2 === 0) {
+        ctx.fillStyle = C.tile;
+        ctx.fillRect(60, y - 24, W - 120, 32);
+      }
+      text(ctx, r[0], W / 2, y, 22, C.muted, "700", "center");
+      text(ctx, r[1], 300, y, 28, r[3] === "a" ? C.accent : C.fg, r[3] === "a" ? "800" : "600", "center");
+      text(ctx, r[2], W - 300, y, 28, r[3] === "b" ? C.b : C.fg, r[3] === "b" ? "800" : "600", "center");
+    });
 
     return canvas;
   }
 
-  /* ---------- deep links: #player-x opens that card (last, once everything is set up) ---------- */
+  /* ---------- deep links: #player-x / #compare-a-vs-b (last, once everything is set up) ---------- */
 
   function fromHash() {
+    var pair = compareFor(location.hash);
+    if (pair) return openCompare(pair[0], pair[1]);
     var dlg = cardFor(location.hash);
     if (dlg) open(dlg);
   }
