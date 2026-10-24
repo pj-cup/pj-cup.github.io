@@ -11,29 +11,22 @@
   var FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, ' +
     'Thonburi, "Noto Sans Thai", "Leelawadee UI", sans-serif';
 
-  // Runtime strings; the page's <html lang> (set by build.py) picks the language.
+  // Runtime-only strings; the page's <html lang> (set by build.py) picks the language.
+  // Stat labels and the W/D/L record come pre-translated in the compare-data / data-share JSON.
   var I18N = {
     en: {
-      rank: "RANK", mp: "MP", wdl: "W–D–L", pts: "PTS", ppm: "PTS/MP", sets: "SETS W–L",
-      close: "CLOSE W–L", gf: "GF", ga: "GA", gd: "GD",
       notPlayed: "Not played yet", inProgress: "In progress — not yet counted",
       won: function (name) { return name + " won"; }, draw: "Draw",
-      vs: "VS", h2h: "Head-to-head", h2hCaps: "HEAD-TO-HEAD",
-      insights: "Player Insights", insightsCaps: "PLAYER INSIGHTS",
-      sub: "Season to date · scores out of 10", cmpNote: "Season to date · insights out of 10",
-      snapshot: "Snapshot ", rankNo: "RANK #",
-      record: function (p) { return p.w + "W " + p.d + "D " + p.l + "L"; }
+      vs: "VS", versus: " vs ", h2hCaps: "HEAD-TO-HEAD", insightsCaps: "PLAYER INSIGHTS",
+      cmpNote: "Season to date · insights out of 10",
+      snapshot: "Snapshot ", rankNo: "RANK #"
     },
     th: {
-      rank: "อันดับ", mp: "แข่ง", wdl: "ชนะ–เสมอ–แพ้", pts: "แต้ม", ppm: "แต้ม/นัด", sets: "เซต ชนะ–แพ้",
-      close: "เซตสูสี ชนะ–แพ้", gf: "ได้", ga: "เสีย", gd: "ผลต่าง",
       notPlayed: "ยังไม่ได้แข่ง", inProgress: "กำลังแข่ง — ยังไม่นับคะแนน",
       won: function (name) { return name + " ชนะ"; }, draw: "เสมอ",
-      vs: "VS", h2h: "ผลการพบกัน", h2hCaps: "ผลการพบกัน",
-      insights: "ค่าพลังผู้เล่น", insightsCaps: "ค่าพลังผู้เล่น",
-      sub: "ตลอดฤดูกาล · คะแนนเต็ม 10", cmpNote: "ตลอดฤดูกาล · คะแนนเต็ม 10",
-      snapshot: "ข้อมูล ณ ", rankNo: "อันดับ #",
-      record: function (p) { return "ชนะ " + p.w + " เสมอ " + p.d + " แพ้ " + p.l; }
+      vs: "VS", versus: " พบ ", h2hCaps: "ผลการพบกัน", insightsCaps: "ค่าพลังผู้เล่น",
+      cmpNote: "ตลอดฤดูกาล · คะแนนเต็ม 10",
+      snapshot: "ข้อมูล ณ ", rankNo: "อันดับ #"
     }
   };
   var L = I18N[root.lang] || I18N.en;
@@ -44,6 +37,7 @@
   try {
     cmpData = JSON.parse(document.getElementById("compare-data").textContent);
   } catch (e) {}
+  var LBL = (cmpData && cmpData.labels) || {};
 
   function cardFor(hash) {
     if (!hash || hash.indexOf("#player-") !== 0) return null;
@@ -89,7 +83,13 @@
     if (current && e.target === current) current.close();
   });
 
+  // The modal makes the header's TH/EN switch inert, so each dialog gets its own copy;
+  // theme.js appends the open #player-x / #compare-a-vs-b hash when it's clicked.
+  var langToggle = document.querySelector(".site-header .lang-toggle");
+
   Array.prototype.forEach.call(document.querySelectorAll("dialog.player-card"), function (dlg) {
+    var closeBtn = dlg.querySelector(".pc-close");
+    if (langToggle && closeBtn) closeBtn.parentNode.insertBefore(langToggle.cloneNode(true), closeBtn);
     dlg.addEventListener("close", function () {
       if (current === dlg) {
         current = null;
@@ -138,16 +138,16 @@
 
   // [label, display(p), score(p) for "better" (null = no data), direction: 1 higher wins, -1 lower wins, 0 not compared]
   var ROWS = [
-    [L.rank, function (p) { return "#" + p.rank; }, function (p) { return parseInt(p.rank, 10); }, -1],
-    [L.mp, function (p) { return p.mp; }, null, 0],
-    [L.wdl, function (p) { return p.w + "–" + p.d + "–" + p.l; }, null, 0],
-    [L.pts, function (p) { return p.pts; }, function (p) { return p.pts; }, 1],
-    [L.ppm, function (p) { return p.ppm; }, function (p) { return p.mp ? p.pts / p.mp : null; }, 1],
-    [L.sets, function (p) { return p.sets_w + "–" + p.sets_l; }, function (p) { return ratio(p.sets_w, p.sets_l); }, 1],
-    [L.close, function (p) { return p.close_w + p.close_l ? p.close_w + "–" + p.close_l : "–"; }, function (p) { return ratio(p.close_w, p.close_l); }, 1],
-    [L.gf, function (p) { return p.gf; }, function (p) { return p.gf; }, 1],
-    [L.ga, function (p) { return p.ga; }, function (p) { return p.mp ? p.ga : null; }, -1], // 0 conceded in 0 matches is no merit
-    [L.gd, function (p) { return signed(p.gd); }, function (p) { return p.gd; }, 1]
+    [LBL.rank, function (p) { return "#" + p.rank; }, function (p) { return parseInt(p.rank, 10); }, -1],
+    [LBL.mp, function (p) { return p.mp; }, null, 0],
+    [LBL.wdl, function (p) { return p.w + "–" + p.d + "–" + p.l; }, null, 0],
+    [LBL.pts, function (p) { return p.pts; }, function (p) { return p.pts; }, 1],
+    [LBL.ppm, function (p) { return p.ppm; }, function (p) { return p.mp ? p.pts / p.mp : null; }, 1],
+    [LBL.sets, function (p) { return p.sets_w + "–" + p.sets_l; }, function (p) { return ratio(p.sets_w, p.sets_l); }, 1],
+    [LBL.close, function (p) { return p.close_w + p.close_l ? p.close_w + "–" + p.close_l : "–"; }, function (p) { return ratio(p.close_w, p.close_l); }, 1],
+    [LBL.gf, function (p) { return p.gf; }, function (p) { return p.gf; }, 1],
+    [LBL.ga, function (p) { return p.ga; }, function (p) { return p.mp ? p.ga : null; }, -1], // 0 conceded in 0 matches is no merit
+    [LBL.gd, function (p) { return signed(p.gd); }, function (p) { return p.gd; }, 1]
   ];
 
   // Rows with the winning side: "a", "b" or "" (tie, no data, or not compared).
@@ -209,7 +209,7 @@
     }
     function fmt(v) { return v === null ? "–" : v.toFixed(1); }
     var label = cmpData.axes.map(function (ax, i) {
-      return ax.charAt(0) + ax.slice(1).toLowerCase() + " " + fmt(a.axes[i][1]) + " vs " + fmt(b.axes[i][1]);
+      return ax.charAt(0) + ax.slice(1).toLowerCase() + " " + fmt(a.axes[i][1]) + L.versus + fmt(b.axes[i][1]);
     }).join(", ");
     var parts = ['<svg class="radar" viewBox="0 0 380 360" role="img" aria-label="' + esc(label) + '">',
       '<polygon class="rg-area" points="' + ring(1) + '"/>'];
@@ -258,9 +258,9 @@
         '<b class="b' + (r[3] === "b" ? " better" : "") + '">' + esc(r[2]) + "</b></div>";
     }).join("");
     return '<div class="cmp-head">' + compareSide(a, "a") + '<span class="cmp-vs">' + L.vs + '</span>' + compareSide(b, "b") + "</div>" +
-      '<div class="pc-block"><h4>' + L.h2h + '</h4><p class="cmp-h2h">' + chip + "<span>" + esc(h2hSummary(a, b, h)) + "</span></p>" + cells + "</div>" +
+      '<div class="pc-block"><h4>' + esc(LBL.h2h) + '</h4><p class="cmp-h2h">' + chip + "<span>" + esc(h2hSummary(a, b, h)) + "</span></p>" + cells + "</div>" +
       '<div class="pc-block cmp-rows">' + rows + "</div>" +
-      '<div class="pc-block pc-insights"><h4>' + L.insights + '</h4><p class="pc-sub">' + L.sub + "</p>" +
+      '<div class="pc-block pc-insights"><h4>' + esc(LBL.insights) + '</h4><p class="pc-sub">' + esc(LBL.sub) + "</p>" +
       compareRadar(a, b) + "</div>";
   }
 
@@ -275,7 +275,7 @@
   function openCompare(ka, kb) {
     var pair = comparePlayers(ka, kb);
     if (!pair) return;
-    cmpDlg.querySelector(".cmp-title").textContent = pair[0].name + " vs " + pair[1].name;
+    cmpDlg.querySelector(".cmp-title").textContent = pair[0].name + L.versus + pair[1].name;
     cmpDlg.querySelector(".cmp-body").innerHTML = renderCompare(pair[0], pair[1]);
     cmpDlg.setAttribute("data-pair", ka + "-vs-" + kb);
     show(cmpDlg, "#compare-" + ka + "-vs-" + kb);
@@ -353,7 +353,7 @@
     if (!keys) return;
     var players = comparePlayers(keys[0], keys[1]);
     share(prepareCompare(keys[0], keys[1]), btn, "pj-cup-" + pair + ".png",
-      players[0].name + " vs " + players[1].name + " · " + cmpData.site,
+      players[0].name + L.versus + players[1].name + " · " + cmpData.site,
       cmpData.page + "#compare-" + pair);
   }
 
@@ -508,7 +508,7 @@
   }
 
   function drawCard(d, img) {
-    var frame = drawFrame(img, d.site, d.date, d.url, L.sub);
+    var frame = drawFrame(img, d.site, d.date, d.url, d.sub);
     var canvas = frame.canvas, ctx = frame.ctx;
 
     // name, rank, record
@@ -565,8 +565,8 @@
     text(ctx, a.name, 60, 270, size, C.accent, "800");
     text(ctx, b.name, W - 60, 270, size, C.b, "800", "right");
     text(ctx, L.vs, W / 2, 262, 36, C.muted, "800", "center");
-    text(ctx, L.rankNo + a.rank + "  ·  " + L.record(a), 60, 322, 28, C.muted, "700");
-    text(ctx, L.rankNo + b.rank + "  ·  " + L.record(b), W - 60, 322, 28, C.muted, "700", "right");
+    text(ctx, L.rankNo + a.rank + "  ·  " + a.record, 60, 322, 28, C.muted, "700");
+    text(ctx, L.rankNo + b.rank + "  ·  " + b.record, W - 60, 322, 28, C.muted, "700", "right");
 
     // head-to-head
     var h = headToHead(a.key, b.key);

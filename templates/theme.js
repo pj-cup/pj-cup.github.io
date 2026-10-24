@@ -41,10 +41,12 @@
     }
 
     // Keep an open player card / compare (#player-x, #compare-a-vs-b) when switching language.
-    document.querySelectorAll(".lang-toggle a").forEach(function (a) {
-      a.addEventListener("click", function () {
-        a.href = a.getAttribute("href").split("#")[0] + location.hash;
-      });
-    });
+    // Delegated, so it also covers the copies player-card.js puts inside the dialogs.
+    function keepHash(e) {
+      var a = e.target.closest && e.target.closest(".lang-toggle a");
+      if (a) a.href = a.getAttribute("href").split("#")[0] + location.hash;
+    }
+    document.addEventListener("click", keepHash);
+    document.addEventListener("auxclick", keepHash);
   });
 })();

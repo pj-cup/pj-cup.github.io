@@ -73,7 +73,7 @@ TEXT = {
         "choose_player": "Choose player…",
         "tile_mp": "MP", "tile_pts": "PTS", "tile_ppm": "PTS/MP", "tile_sets": "SETS W–L",
         "tile_close": "CLOSE", "tile_gf": "GF", "tile_ga": "GA", "tile_gd": "GD",
-        "tile_rank": "RANK",
+        "tile_rank": "RANK", "wdl": "W–D–L",
         "w": "W", "d": "D", "l": "L",
         "record": "{w}W{sep}{d}D{sep}{l}L",
         "since": "Since {date}",
@@ -131,7 +131,7 @@ TEXT = {
         "choose_player": "เลือกผู้เล่น…",
         "tile_mp": "แข่ง", "tile_pts": "แต้ม", "tile_ppm": "แต้ม/นัด", "tile_sets": "เซต ชนะ–แพ้",
         "tile_close": "เซตสูสี", "tile_gf": "ได้", "tile_ga": "เสีย", "tile_gd": "ผลต่าง",
-        "tile_rank": "อันดับ",
+        "tile_rank": "อันดับ", "wdl": "ชนะ–เสมอ–แพ้",
         "w": "ช", "d": "ส", "l": "พ",
         "record": "ชนะ {w}{sep}เสมอ {d}{sep}แพ้ {l}",
         "since": "ตั้งแต่ {date}",
@@ -398,9 +398,11 @@ def lang_head(lang, page):
         f'<link rel="alternate" hreflang="{code}" href="{page_url(code, page)}">\n'
         for code in LANGS
     ) + f'<link rel="alternate" hreflang="x-default" href="{page_url("th", page)}">'
+    # "./" rather than "index.html", so the Thai index keeps the site-root URL used everywhere else.
     links = "".join(
         f'<span aria-current="true">{info["label"]}</span>' if code == lang
-        else f'<a href="{info[page]}" hreflang="{code}" lang="{code}">{info["label"]}</a>'
+        else f'<a href="{"./" if info[page] == "index.html" else info[page]}" hreflang="{code}" '
+        f'lang="{code}">{info["label"]}</a>'
         for code, info in LANGS.items()
     )
     return {
@@ -683,6 +685,7 @@ def render_player_card(
         "tiles": tiles,
         "axes": [[axis_label(axis, lang), None if v is None else round(v, 1)] for axis, v in insights],
         "top": top_axis(insights),
+        "sub": t(lang, "insights_sub"),
         "date": snapshot_date,
         "site": SITE_TITLE,
         "url": SITE_URL.removeprefix("https://").rstrip("/"),
@@ -755,6 +758,14 @@ def build_compare_data(standings, players, grid, moves, snapshot_date, lang):
         "h2h": h2h,
         "axes": [axis_label(axis, lang) for axis in INSIGHT_AXES],
         "letters": {o: outcome_letter(o, lang) for o in ("win", "draw", "loss")},
+        # Same labels as the card tiles, so the compare rows can't drift from them.
+        "labels": {
+            **{key: t(lang, "tile_" + key) for key in ("rank", "mp", "pts", "ppm", "sets", "close", "gf", "ga", "gd")},
+            "wdl": t(lang, "wdl"),
+            "h2h": t(lang, "h2h"),
+            "insights": t(lang, "player_insights"),
+            "sub": t(lang, "insights_sub"),
+        },
         "date": snapshot_date,
         "site": SITE_TITLE,
         "url": SITE_URL.removeprefix("https://").rstrip("/"),

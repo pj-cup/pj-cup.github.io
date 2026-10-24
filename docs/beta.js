@@ -13,11 +13,12 @@
 
   /* ---------- language switch keeps the current #section ---------- */
 
-  $$(".lang-toggle a").forEach(function (a) {
-    a.addEventListener("click", function () {
-      a.href = a.getAttribute("href").split("#")[0] + location.hash;
-    });
-  });
+  function keepHash(e) {
+    var a = e.target.closest && e.target.closest(".lang-toggle a");
+    if (a) a.href = a.getAttribute("href").split("#")[0] + location.hash;
+  }
+  document.addEventListener("click", keepHash);
+  document.addEventListener("auxclick", keepHash);
 
   /* ---------- head-to-head crosshair (no motion, always on) ---------- */
 
