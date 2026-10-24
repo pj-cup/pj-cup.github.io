@@ -40,6 +40,7 @@ LANGS = {
     "en": {"index": "en.html", "beta": "beta-en.html", "locale": "en_US", "label": "EN"},
 }
 
+# Plain text only (no markup or entities): escape with te() when it goes into HTML.
 TEXT = {
     "en": {
         "col_rank": "#", "col_name": "Player", "col_mp": "MP", "col_w": "W", "col_d": "D",
@@ -87,11 +88,10 @@ TEXT = {
         "compare": "Compare",
         "share_compare": "Share compare image",
         "tap_to_skip": "TAP TO SKIP",
-        "classic_view": "&larr; Classic view",
+        "classic_view": "Classic view",
         "mp_count": "{n} MP",
         "wins": "Wins", "draws": "Draws", "losses": "Losses",
         "games_bar": "Games for {gf}, against {ga}",
-        "gf_ga_nums": "GF <b>{gf}</b> · GA <b>{ga}</b>",
         "game_diff": "Game difference",
         "pts_small": "PTS",
         "ppm_suffix": "{ppm}/MP",
@@ -145,11 +145,10 @@ TEXT = {
         "compare": "เปรียบเทียบ",
         "share_compare": "แชร์รูปเปรียบเทียบ",
         "tap_to_skip": "แตะเพื่อข้าม",
-        "classic_view": "&larr; มุมมองคลาสสิก",
+        "classic_view": "มุมมองคลาสสิก",
         "mp_count": "{n} นัด",
         "wins": "ชนะ", "draws": "เสมอ", "losses": "แพ้",
         "games_bar": "ได้ {gf} เกม เสีย {ga} เกม",
-        "gf_ga_nums": "ได้ <b>{gf}</b> · เสีย <b>{ga}</b>",
         "game_diff": "ผลต่างเกม",
         "pts_small": "แต้ม",
         "ppm_suffix": "{ppm}/นัด",
@@ -162,6 +161,11 @@ TEXT = {
 def t(lang, key, **kw):
     value = TEXT[lang][key]
     return value.format(**kw) if kw else value
+
+
+def te(lang, key, **kw):
+    """t(), HTML-escaped: use this wherever a string lands in markup or an attribute."""
+    return html.escape(t(lang, key, **kw))
 
 
 def record_text(row, lang, sep=" · "):
@@ -303,7 +307,7 @@ def render_standings_table(standings, lang, moves=None, prev_label=None):
     def th(key, numeric):
         tip = TEXT[lang].get(f"tip_{key}")
         attrs = (' class="num"' if numeric else "") + (f' title="{html.escape(tip)}"' if tip else "")
-        return f"<th{attrs}>{html.escape(t(lang, 'col_' + key))}</th>"
+        return f"<th{attrs}>{te(lang, 'col_' + key)}</th>"
 
     thead_cells = "".join(th(key, numeric) for key, numeric in STANDINGS_COLUMNS)
 
@@ -342,7 +346,7 @@ def render_rules_section(standings, lang, section_class=None):
     section_attr = f' class="{section_class}"' if section_class else ""
     return (
         f"  <section{section_attr}>\n"
-        f"    <h2>{t(lang, 'rules')}</h2>\n"
+        f"    <h2>{te(lang, 'rules')}</h2>\n"
         f'    <ul class="rules-list">{list_items}</ul>\n'
         "  </section>\n"
     )
@@ -394,7 +398,8 @@ def page_url(lang, page):
 
 def lang_head(lang, page):
     """`lang`, og:locale, hreflang alternates and the TH/EN switch for one page."""
-    alt_links = "".join(
+    # The beta pages are noindex, so search engines would ignore their alternates.
+    alt_links = "" if page == "beta" else "".join(
         f'<link rel="alternate" hreflang="{code}" href="{page_url(code, page)}">\n'
         for code in LANGS
     ) + f'<link rel="alternate" hreflang="x-default" href="{page_url("th", page)}">'
@@ -410,7 +415,7 @@ def lang_head(lang, page):
         "og_locale": LANGS[lang]["locale"],
         "alt_links": alt_links,
         "lang_toggle": (
-            f'<nav class="lang-toggle" aria-label="{html.escape(t(lang, "lang_toggle"))}">'
+            f'<nav class="lang-toggle" aria-label="{te(lang, "lang_toggle")}">'
             f"{links}</nav>"
         ),
     }
@@ -429,11 +434,11 @@ def render_page(
         description=html.escape(description),
         page_url=page_url(lang, "index"),
         image_url=f"{SITE_URL}logo.png",
-        l_snapshot=html.escape(t(lang, "snapshot", date=snapshot_date)),
-        l_theme_toggle=html.escape(t(lang, "theme_toggle")),
-        l_standings=t(lang, "standings"),
-        l_h2h=t(lang, "h2h"),
-        l_source=html.escape(t(lang, "source", file=f"csv/{source_path.name}")),
+        l_snapshot=te(lang, "snapshot", date=snapshot_date),
+        l_theme_toggle=te(lang, "theme_toggle"),
+        l_standings=te(lang, "standings"),
+        l_h2h=te(lang, "h2h"),
+        l_source=te(lang, "source", file=f"csv/{source_path.name}"),
         standings_note=standings_note,
         standings_table=standings_html,
         rules_section=rules_html,
@@ -519,6 +524,15 @@ def clamp10(value):
     return max(0.0, min(10.0, value))
 
 
+def compute_player_data(standings, players, grid, moves):
+    """{name: (match stats, insight axes)} per standings row; language-independent, so built once."""
+    data = {}
+    for row in standings:
+        stats = player_match_stats(row["name"], players, grid)
+        data[row["name"]] = (stats, player_insights(row, stats, (moves or {}).get(row["name"])))
+    return data
+
+
 def player_insights(row, stats, move):
     """Six 0–10 scores in INSIGHT_AXES order; None where there is no data yet."""
     sets = stats["sets_w"] + stats["sets_l"]
@@ -561,9 +575,9 @@ def render_radar_svg(insights, lang):
 
     parts = [
         '<svg class="radar" viewBox="0 0 380 360" role="img" aria-label="'
-        + html.escape(t(lang, "radar_label", scores=", ".join(
+        + te(lang, "radar_label", scores=", ".join(
             f"{axis_label(a, lang).title()} {format_score(v)}" for a, v in insights
-        )))
+        ))
         + '">',
         f'<polygon class="rg-area" points="{ring(1)}"/>',
     ]
@@ -616,18 +630,16 @@ def render_compare_picker(name, standings, lang):
         for s in standings if s["name"] != name
     )
     return (
-        f'<label class="pc-compare" hidden><span>{t(lang, "compare_with")}</span>'
-        f'<select><option value="">{t(lang, "choose_player")}</option>{options}</select></label>'
+        f'<label class="pc-compare" hidden><span>{te(lang, "compare_with")}</span>'
+        f'<select><option value="">{te(lang, "choose_player")}</option>{options}</select></label>'
     )
 
 
 def render_player_card(
-    row, players, grid, move, prev_row, prev_label, snapshot_date, standings, lang
+    row, stats, insights, move, prev_row, prev_label, snapshot_date, standings, lang
 ):
     name = row["name"]
     slug = player_slug(name)
-    stats = player_match_stats(name, players, grid)
-    insights = player_insights(row, stats, move)
     close = stats["close_w"] + stats["close_l"]
 
     gd = to_int(row["gd"])
@@ -657,23 +669,23 @@ def render_player_card(
                 since.append((label, format_delta(cur - prev)))
         if since:
             since_html = (
-                f'<div class="pc-block"><h4>{html.escape(t(lang, "since", date=prev_label))}</h4>'
+                f'<div class="pc-block"><h4>{te(lang, "since", date=prev_label)}</h4>'
                 + render_tiles([(l, html.escape(v)) for l, v in since], " small")
                 + "</div>"
             )
 
     items = [
-        f'<li><span class="chip {outcome}">{outcome_letter(outcome, lang)}</span>'
+        f'<li><span class="chip {outcome}">{html.escape(outcome_letter(outcome, lang))}</span>'
         f'<span class="opp">{html.escape(opp)}</span><span class="score">{html.escape(text)}</span></li>'
         for opp, text, outcome in stats["results"]
     ] + [
         f'<li class="live"><span class="chip live">•</span><span class="opp">{html.escape(opp)}</span>'
-        f'<span class="score">{html.escape(text)} <em>{t(lang, "in_progress")}</em></span></li>'
+        f'<span class="score">{html.escape(text)} <em>{te(lang, "in_progress")}</em></span></li>'
         for opp, text in stats["ongoing"]
     ]
     results_html = (
         f'<ul class="pc-results">{"".join(items)}</ul>'
-        if items else f'<p class="pc-empty">{t(lang, "no_matches")}</p>'
+        if items else f'<p class="pc-empty">{te(lang, "no_matches")}</p>'
     )
 
     share = {
@@ -699,25 +711,25 @@ def render_player_card(
         f'<div class="pc-head"><span class="pc-rank">{html.escape(row["rank"])}</span>'
         f'<div class="pc-id"><h3 id="{slug}-name">{html.escape(name)}</h3>'
         f'<p class="pc-record">{html.escape(record)}{move_html}</p></div>'
-        f'<a class="pc-close" href="#" aria-label="{t(lang, "close")}">&times;</a></div>'
+        f'<a class="pc-close" href="#" aria-label="{te(lang, "close")}">&times;</a></div>'
         + render_tiles([(l, html.escape(v)) for l, v in tiles])
-        + f'<div class="pc-block pc-insights"><h4>{t(lang, "player_insights")}</h4>'
-        f'<p class="pc-sub">{t(lang, "insights_sub")}</p>{render_radar_svg(insights, lang)}</div>'
+        + f'<div class="pc-block pc-insights"><h4>{te(lang, "player_insights")}</h4>'
+        f'<p class="pc-sub">{te(lang, "insights_sub")}</p>{render_radar_svg(insights, lang)}</div>'
         + since_html
-        + f'<div class="pc-block"><h4>{t(lang, "results")}</h4>{results_html}</div>'
+        + f'<div class="pc-block"><h4>{te(lang, "results")}</h4>{results_html}</div>'
         + f'<div class="pc-actions">{render_compare_picker(name, standings, lang)}'
-        f'<button class="pc-share" type="button" hidden>{t(lang, "share_card")}</button></div>'
+        f'<button class="pc-share" type="button" hidden>{te(lang, "share_card")}</button></div>'
         f"</div></dialog>"
     )
 
 
 def render_player_cards(
-    standings, players, grid, moves, prev_standings, prev_label, snapshot_date, lang
+    standings, player_data, moves, prev_standings, prev_label, snapshot_date, lang
 ):
     prev_rows = {s["name"]: s for s in prev_standings or []}
     cards = [
         render_player_card(
-            row, players, grid, (moves or {}).get(row["name"]),
+            row, *player_data[row["name"]], (moves or {}).get(row["name"]),
             prev_rows.get(row["name"]), prev_label, snapshot_date, standings, lang,
         )
         for row in standings
@@ -728,14 +740,13 @@ def render_player_cards(
 # ---------- player compare (index.html only; filled in by player-card.js) ----------
 
 
-def build_compare_data(standings, players, grid, moves, snapshot_date, lang):
+def build_compare_data(standings, players, grid, player_data, moves, snapshot_date, lang):
     """Per-player stats + head-to-head cells for any pair, as JSON for the compare dialog."""
     data = {}
     for row in standings:
         name = row["name"]
         move = (moves or {}).get(name)
-        stats = player_match_stats(name, players, grid)
-        insights = player_insights(row, stats, move)
+        stats, insights = player_data[name]
         data[compare_key(name)] = {
             "name": name,
             "rank": row["rank"],
@@ -778,10 +789,10 @@ def render_compare(compare_data, lang):
     return (
         '<dialog class="player-card compare-card" id="compare" aria-labelledby="compare-title">'
         '<div class="pc-inner">'
-        f'<div class="pc-head"><h3 class="cmp-title" id="compare-title">{t(lang, "compare")}</h3>'
-        f'<a class="pc-close" href="#" aria-label="{t(lang, "close")}">&times;</a></div>'
+        f'<div class="pc-head"><h3 class="cmp-title" id="compare-title">{te(lang, "compare")}</h3>'
+        f'<a class="pc-close" href="#" aria-label="{te(lang, "close")}">&times;</a></div>'
         '<div class="cmp-body"></div>'
-        f'<div class="pc-actions"><button class="pc-share" type="button" hidden>{t(lang, "share_compare")}</button></div>'
+        f'<div class="pc-actions"><button class="pc-share" type="button" hidden>{te(lang, "share_compare")}</button></div>'
         "</div></dialog>\n"
         f'<script type="application/json" id="compare-data">{payload}</script>'
     )
@@ -815,26 +826,27 @@ def render_beta_standings(standings, lang, moves=None, prev_label=None):
 
         pts = html.escape(s["pts"])
         ppm = format_pts_per_match(s)
-        ppm_text = ppm if ppm == "–" else t(lang, "ppm_suffix", ppm=ppm)
+        ppm_text = ppm if ppm == "–" else te(lang, "ppm_suffix", ppm=ppm)
         move = render_rank_move(moves[s["name"]], prev_label, lang) if moves and s["name"] in moves else ""
         cards.append(
             f'<li class="card{leader}" style="--i:{i}"><div class="inner">'
             f'<span class="rankcol"><span class="rank{medal}">{rank}</span>{move}</span>'
             f'<div class="who"><span class="name">{name}</span>'
-            f'<span class="mp">{t(lang, "mp_count", n=html.escape(s["mp"]))}</span></div>'
+            f'<span class="mp">{te(lang, "mp_count", n=s["mp"])}</span></div>'
             f'<div class="pills">'
-            f'<span class="pill w" title="{t(lang, "wins")}"><b>{html.escape(s["w"])}</b>{t(lang, "w")}</span>'
-            f'<span class="pill d" title="{t(lang, "draws")}"><b>{html.escape(s["d"])}</b>{t(lang, "d")}</span>'
-            f'<span class="pill l" title="{t(lang, "losses")}"><b>{html.escape(s["l"])}</b>{t(lang, "l")}</span>'
+            f'<span class="pill w" title="{te(lang, "wins")}"><b>{html.escape(s["w"])}</b>{te(lang, "w")}</span>'
+            f'<span class="pill d" title="{te(lang, "draws")}"><b>{html.escape(s["d"])}</b>{te(lang, "d")}</span>'
+            f'<span class="pill l" title="{te(lang, "losses")}"><b>{html.escape(s["l"])}</b>{te(lang, "l")}</span>'
             f"</div>"
             f'<div class="gfga">'
-            f'<div class="{bar_cls}" role="img" aria-label="{t(lang, "games_bar", gf=gf, ga=ga)}">'
+            f'<div class="{bar_cls}" role="img" aria-label="{te(lang, "games_bar", gf=gf, ga=ga)}">'
             f'<i class="fill" style="--share:{share}"></i></div>'
-            f'<span class="nums">{t(lang, "gf_ga_nums", gf=html.escape(s["gf"]), ga=html.escape(s["ga"]))}</span>'
+            f'<span class="nums">{te(lang, "tile_gf")} <b>{html.escape(s["gf"])}</b> · '
+            f'{te(lang, "tile_ga")} <b>{html.escape(s["ga"])}</b></span>'
             f"</div>"
-            f'<span class="gd {gd_cls}" title="{t(lang, "game_diff")}">{gd_text}</span>'
-            f'<span class="pts"><b class="count" data-to="{pts}">{pts}</b><small>{t(lang, "pts_small")}</small>'
-            f'<small class="ppm" title="{t(lang, "ppm_title")}">{ppm_text}</small></span>'
+            f'<span class="gd {gd_cls}" title="{te(lang, "game_diff")}">{gd_text}</span>'
+            f'<span class="pts"><b class="count" data-to="{pts}">{pts}</b><small>{te(lang, "pts_small")}</small>'
+            f'<small class="ppm" title="{te(lang, "ppm_title")}">{ppm_text}</small></span>'
             f"</div></li>"
         )
     return f'    <ol class="board">{"".join(cards)}</ol>'
@@ -856,7 +868,7 @@ def render_beta_h2h(players, grid, lang):
                 if outcome:
                     cls += f" out-{outcome}"
                     inner = (
-                        f'<b class="wdl">{outcome_letter(outcome, lang)}</b>'
+                        f'<b class="wdl">{html.escape(outcome_letter(outcome, lang))}</b>'
                         f'<span class="sc">{inner}</span>'
                     )
             row_cells.append(
@@ -884,14 +896,14 @@ def render_beta_page(
         description=html.escape(description),
         page_url=page_url(lang, "beta"),
         image_url=f"{SITE_URL}logo.png",
-        l_beta=t(lang, "beta_suffix"),
-        l_snapshot=html.escape(t(lang, "snapshot", date=snapshot_date)),
-        l_tap_to_skip=t(lang, "tap_to_skip"),
-        l_classic_view=t(lang, "classic_view"),
+        l_beta=te(lang, "beta_suffix"),
+        l_snapshot=te(lang, "snapshot", date=snapshot_date),
+        l_tap_to_skip=te(lang, "tap_to_skip"),
+        l_classic_view=te(lang, "classic_view"),
         classic_href=LANGS[lang]["index"],
-        l_standings=t(lang, "standings"),
-        l_h2h=t(lang, "h2h"),
-        l_source=html.escape(t(lang, "source", file=f"csv/{source_path.name}")),
+        l_standings=te(lang, "standings"),
+        l_h2h=te(lang, "h2h"),
+        l_source=te(lang, "source", file=f"csv/{source_path.name}"),
         title_letters=render_title_letters(SITE_TITLE),
         standings_note=standings_note,
         standings_board=render_beta_standings(standings, lang, moves, prev_label),
@@ -913,6 +925,8 @@ def main():
         prev_standings, _, _ = parse_snapshot(previous)
         moves = compute_rank_moves(standings, prev_standings)
 
+    player_data = compute_player_data(standings, players, grid, moves)
+
     DOCS_DIR.mkdir(exist_ok=True)
     written = []
     for lang, pages in LANGS.items():
@@ -922,17 +936,17 @@ def main():
             prev_label = format_snapshot_date(previous, lang)
             standings_note = (
                 '    <p class="standings-note">'
-                f'{html.escape(t(lang, "rank_change_vs", date=prev_label))}</p>\n'
+                f'{te(lang, "rank_change_vs", date=prev_label)}</p>\n'
             )
 
         standings_html = render_standings_table(standings, lang, moves, prev_label)
         rules_html = render_rules_section(standings, lang)
         h2h_html = render_h2h_table(players, grid, lang, linked={s["name"] for s in standings})
         player_cards = render_player_cards(
-            standings, players, grid, moves, prev_standings, prev_label, snapshot_date, lang
+            standings, player_data, moves, prev_standings, prev_label, snapshot_date, lang
         )
         compare_html = render_compare(
-            build_compare_data(standings, players, grid, moves, snapshot_date, lang), lang
+            build_compare_data(standings, players, grid, player_data, moves, snapshot_date, lang), lang
         )
         page_html = render_page(
             lang, standings_html, rules_html, h2h_html, latest, snapshot_date, standings_note,
