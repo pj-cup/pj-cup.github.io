@@ -217,6 +217,30 @@ td.num, th.num {
   font-size: 0.8rem;
 }
 
+.league-progress {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 0.75rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.lp-bar {
+  flex: 1;
+  max-width: 12rem;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.lp-bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
 .rank-move {
   margin-left: 0.35rem;
   font-size: 0.72rem;
@@ -582,6 +606,36 @@ html:not(.pc-js) dialog.player-card:target {
 .pc-results .score {
   color: var(--card-muted);
   font-variant-numeric: tabular-nums;
+}
+
+.pc-remaining {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.pc-remaining li {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: var(--card-tile);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.pc-remaining li.tba {
+  outline: 1px dashed var(--card-muted);
+  outline-offset: -1px;
+}
+
+.pc-remaining li.ongoing {
+  box-shadow: inset 0 0 0 1px var(--card-draw);
+}
+
+.pc-remaining .player-link {
+  color: var(--card-fg);
 }
 
 .pc-results em {

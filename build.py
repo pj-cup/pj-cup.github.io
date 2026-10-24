@@ -31,6 +31,8 @@ STANDINGS_COLUMNS = [
     ("gd", True),
     ("pts", True),
     ("ppm", True),
+    ("left", True),
+    ("max", True),
 ]
 
 # One pre-rendered page per language. English strings are the original literals;
@@ -45,9 +47,11 @@ TEXT = {
     "en": {
         "col_rank": "#", "col_name": "Player", "col_mp": "MP", "col_w": "W", "col_d": "D",
         "col_l": "L", "col_gf": "GF", "col_ga": "GA", "col_gd": "GD", "col_pts": "Pts",
-        "col_ppm": "Pts/MP",
+        "col_ppm": "Pts/MP", "col_left": "Left", "col_max": "Max",
         "tip_mp": "", "tip_w": "", "tip_d": "", "tip_l": "", "tip_gf": "", "tip_ga": "",
         "tip_gd": "", "tip_pts": "", "tip_ppm": "",
+        "tip_left": "Opponents not yet played",
+        "tip_max": "Most points still reachable if every remaining match is played",
         "months": ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
                    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
         "year_offset": 0,
@@ -97,14 +101,21 @@ TEXT = {
         "ppm_suffix": "{ppm}/MP",
         "ppm_title": "Points per match played",
         "beta_suffix": "Beta",
+        "progress": "{done} / {total} matches played ({pct}%)",
+        "still_to_play": "Still to play",
+        "max_possible": "Max possible: {n} pts if every remaining match is played",
+        "all_played": "Every opponent played.",
+        "left_max": "{left} left · max {max}",
     },
     "th": {
         "col_rank": "#", "col_name": "ผู้เล่น", "col_mp": "แข่ง", "col_w": "ชนะ", "col_d": "เสมอ",
         "col_l": "แพ้", "col_gf": "ได้", "col_ga": "เสีย", "col_gd": "ผลต่าง", "col_pts": "แต้ม",
-        "col_ppm": "แต้ม/นัด",
+        "col_ppm": "แต้ม/นัด", "col_left": "เหลือ", "col_max": "สูงสุด",
         "tip_mp": "จำนวนนัดที่แข่ง", "tip_w": "", "tip_d": "", "tip_l": "",
         "tip_gf": "เกมที่ได้", "tip_ga": "เกมที่เสีย", "tip_gd": "ผลต่างเกม",
         "tip_pts": "แต้มรวม", "tip_ppm": "แต้มเฉลี่ยต่อนัด",
+        "tip_left": "คู่แข่งที่ยังไม่ได้แข่ง",
+        "tip_max": "แต้มสูงสุดที่ยังทำได้ ถ้าแข่งครบทุกนัดที่เหลือ",
         "months": ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
                    "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."],
         "year_offset": 543,
@@ -154,6 +165,11 @@ TEXT = {
         "ppm_suffix": "{ppm}/นัด",
         "ppm_title": "แต้มเฉลี่ยต่อนัด",
         "beta_suffix": "เบต้า",
+        "progress": "แข่งไปแล้ว {done} / {total} นัด ({pct}%)",
+        "still_to_play": "นัดที่เหลือ",
+        "max_possible": "แต้มสูงสุดที่ทำได้: {n} แต้ม ถ้าแข่งครบทุกนัดที่เหลือ",
+        "all_played": "แข่งครบทุกคู่แล้ว",
+        "left_max": "เหลือ {left} · สูงสุด {max}",
     },
 }
 
@@ -289,6 +305,28 @@ def format_pts_per_match(row):
     return f"{pts / mp:.2f}"
 
 
+def format_max_points(row, stats):
+    pts = to_int(row["pts"])
+    return "–" if pts is None else str(pts + POINTS_PER_WIN * len(stats["remaining"]))
+
+
+def render_league_progress(players, grid, lang):
+    pairs = [(a, b) for i, a in enumerate(players) for b in players[i + 1:]]
+    done = sum(
+        1 for a, b in pairs
+        if "result" in (
+            classify_cell(grid.get(a, {}).get(b, ""), a, b)[0],
+            classify_cell(grid.get(b, {}).get(a, ""), b, a)[0],
+        )
+    )
+    total = len(pairs)
+    pct = round(done / total * 100)
+    return (
+        f'    <div class="league-progress"><span>{te(lang, "progress", done=done, total=total, pct=pct)}</span>'
+        f'<i class="lp-bar" role="presentation"><i style="width:{pct}%"></i></i></div>\n'
+    )
+
+
 def render_rank_move(delta, prev_label, lang):
     places = t(lang, "places_1" if abs(delta) == 1 else "places_n", n=abs(delta))
     if delta > 0:
@@ -303,7 +341,7 @@ def render_rank_move(delta, prev_label, lang):
     )
 
 
-def render_standings_table(standings, lang, moves=None, prev_label=None):
+def render_standings_table(standings, player_data, lang, moves=None, prev_label=None):
     def th(key, numeric):
         tip = TEXT[lang].get(f"tip_{key}")
         attrs = (' class="num"' if numeric else "") + (f' title="{html.escape(tip)}"' if tip else "")
@@ -313,7 +351,13 @@ def render_standings_table(standings, lang, moves=None, prev_label=None):
 
     body_rows = []
     for row_data in standings:
-        values = {**row_data, "ppm": format_pts_per_match(row_data)}
+        stats = player_data[row_data["name"]][0]
+        values = {
+            **row_data,
+            "ppm": format_pts_per_match(row_data),
+            "left": str(len(stats["remaining"])),
+            "max": format_max_points(row_data, stats),
+        }
         cells = []
         for key, numeric in STANDINGS_COLUMNS:
             value = html.escape(values[key])
@@ -423,7 +467,7 @@ def lang_head(lang, page):
 
 def render_page(
     lang, standings_html, rules_html, h2h_html, source_path, snapshot_date, standings_note="",
-    player_cards="", compare="",
+    player_cards="", compare="", league_progress_html="",
 ):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
     title = SITE_TITLE
@@ -440,6 +484,7 @@ def render_page(
         l_h2h=te(lang, "h2h"),
         l_source=te(lang, "source", file=f"csv/{source_path.name}"),
         standings_note=standings_note,
+        league_progress=league_progress_html,
         standings_table=standings_html,
         rules_section=rules_html,
         h2h_table=h2h_html,
@@ -466,6 +511,7 @@ def cell_outcome(raw):
 # Clockwise from the top of the hexagon.
 INSIGHT_AXES = ("ATTACK", "DOMINANCE", "FORM", "DEFENSE", "CLUTCH", "MOVEMENT")
 GAMES_PER_SET = 4
+POINTS_PER_WIN = 3
 
 
 def axis_label(axis, lang):
@@ -497,10 +543,12 @@ def player_match_stats(name, players, grid):
     stats = {
         "sets_w": 0, "sets_l": 0, "games_w": 0, "games_l": 0,
         "close_w": 0, "close_l": 0, "dominant_w": 0,
-        "results": [], "ongoing": [],
+        "results": [], "ongoing": [], "remaining": [],
     }
     for opp in players:
         cls, text, _ = classify_cell(grid.get(name, {}).get(opp, ""), name, opp)
+        if cls not in ("result", "diag"):
+            stats["remaining"].append((opp, cls))
         if cls == "ongoing":
             stats["ongoing"].append((opp, text))
         if cls != "result":
@@ -543,7 +591,7 @@ def player_insights(row, stats, move):
         "DEFENSE": clamp10((1 - stats["games_l"] / sets / GAMES_PER_SET) * 10) if sets else None,
         "DOMINANCE": stats["dominant_w"] / sets * 10 if sets else None,
         "CLUTCH": stats["close_w"] / close * 10 if close else None,
-        "FORM": clamp10(pts / mp / 3 * 10) if pts is not None and mp else None,
+        "FORM": clamp10(pts / mp / POINTS_PER_WIN * 10) if pts is not None and mp else None,
         "MOVEMENT": clamp10(5 + move) if move is not None else None,
     }
     return [(axis, scores[axis]) for axis in INSIGHT_AXES]
@@ -635,6 +683,19 @@ def render_compare_picker(name, standings, lang):
     )
 
 
+def render_remaining_block(row, stats, lang):
+    if not stats["remaining"]:
+        return f'<div class="pc-block"><h4>{te(lang, "still_to_play")}</h4><p class="pc-empty">{te(lang, "all_played")}</p></div>'
+    chips = "".join(
+        f'<li class="{cls}">{render_player_link(opp)}</li>' for opp, cls in stats["remaining"]
+    )
+    return (
+        f'<div class="pc-block"><h4>{te(lang, "still_to_play")} · {len(stats["remaining"])}</h4>'
+        f'<p class="pc-sub">{te(lang, "max_possible", n=format_max_points(row, stats))}</p>'
+        f'<ul class="pc-remaining">{chips}</ul></div>'
+    )
+
+
 def render_player_card(
     row, stats, insights, move, prev_row, prev_label, snapshot_date, standings, lang
 ):
@@ -717,6 +778,7 @@ def render_player_card(
         f'<p class="pc-sub">{te(lang, "insights_sub")}</p>{render_radar_svg(insights, lang)}</div>'
         + since_html
         + f'<div class="pc-block"><h4>{te(lang, "results")}</h4>{results_html}</div>'
+        + render_remaining_block(row, stats, lang)
         + f'<div class="pc-actions">{render_compare_picker(name, standings, lang)}'
         f'<button class="pc-share" type="button" hidden>{te(lang, "share_card")}</button></div>'
         f"</div></dialog>"
@@ -805,7 +867,7 @@ def render_title_letters(title):
     )
 
 
-def render_beta_standings(standings, lang, moves=None, prev_label=None):
+def render_beta_standings(standings, player_data, lang, moves=None, prev_label=None):
     cards = []
     for i, s in enumerate(standings):
         name = html.escape(s["name"])
@@ -828,6 +890,8 @@ def render_beta_standings(standings, lang, moves=None, prev_label=None):
         ppm = format_pts_per_match(s)
         ppm_text = ppm if ppm == "–" else te(lang, "ppm_suffix", ppm=ppm)
         move = render_rank_move(moves[s["name"]], prev_label, lang) if moves and s["name"] in moves else ""
+        stats = player_data[s["name"]][0]
+        left_text = te(lang, "left_max", left=len(stats["remaining"]), max=format_max_points(s, stats))
         cards.append(
             f'<li class="card{leader}" style="--i:{i}"><div class="inner">'
             f'<span class="rankcol"><span class="rank{medal}">{rank}</span>{move}</span>'
@@ -846,7 +910,8 @@ def render_beta_standings(standings, lang, moves=None, prev_label=None):
             f"</div>"
             f'<span class="gd {gd_cls}" title="{te(lang, "game_diff")}">{gd_text}</span>'
             f'<span class="pts"><b class="count" data-to="{pts}">{pts}</b><small>{te(lang, "pts_small")}</small>'
-            f'<small class="ppm" title="{te(lang, "ppm_title")}">{ppm_text}</small></span>'
+            f'<small class="ppm" title="{te(lang, "ppm_title")}">{ppm_text}</small>'
+            f'<small class="left" title="{te(lang, "tip_max")}">{left_text}</small></span>'
             f"</div></li>"
         )
     return f'    <ol class="board">{"".join(cards)}</ol>'
@@ -885,8 +950,8 @@ def render_beta_h2h(players, grid, lang):
 
 
 def render_beta_page(
-    lang, standings, players, grid, source_path, snapshot_date,
-    moves=None, prev_label=None, standings_note="",
+    lang, standings, players, grid, player_data, source_path, snapshot_date,
+    moves=None, prev_label=None, standings_note="", league_progress_html="",
 ):
     template = Template((TEMPLATE_DIR / "beta.html.tmpl").read_text(encoding="utf-8"))
     description = t(lang, "description", date=snapshot_date)
@@ -906,7 +971,8 @@ def render_beta_page(
         l_source=te(lang, "source", file=f"csv/{source_path.name}"),
         title_letters=render_title_letters(SITE_TITLE),
         standings_note=standings_note,
-        standings_board=render_beta_standings(standings, lang, moves, prev_label),
+        league_progress=league_progress_html,
+        standings_board=render_beta_standings(standings, player_data, lang, moves, prev_label),
         rules_section=render_rules_section(standings, lang, section_class="reveal"),
         h2h_table=render_beta_h2h(players, grid, lang),
     )
@@ -939,7 +1005,8 @@ def main():
                 f'{te(lang, "rank_change_vs", date=prev_label)}</p>\n'
             )
 
-        standings_html = render_standings_table(standings, lang, moves, prev_label)
+        standings_html = render_standings_table(standings, player_data, lang, moves, prev_label)
+        progress_html = render_league_progress(players, grid, lang)
         rules_html = render_rules_section(standings, lang)
         h2h_html = render_h2h_table(players, grid, lang, linked={s["name"] for s in standings})
         player_cards = render_player_cards(
@@ -950,14 +1017,14 @@ def main():
         )
         page_html = render_page(
             lang, standings_html, rules_html, h2h_html, latest, snapshot_date, standings_note,
-            player_cards, compare_html,
+            player_cards, compare_html, progress_html,
         )
 
         (DOCS_DIR / pages["index"]).write_text(page_html, encoding="utf-8")
         (DOCS_DIR / pages["beta"]).write_text(
             render_beta_page(
-                lang, standings, players, grid, latest, snapshot_date, moves, prev_label,
-                standings_note,
+                lang, standings, players, grid, player_data, latest, snapshot_date, moves,
+                prev_label, standings_note, progress_html,
             ),
             encoding="utf-8",
         )
