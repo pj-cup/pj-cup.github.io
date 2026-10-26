@@ -226,6 +226,86 @@ td.num, th.num {
   font-size: 0.8rem;
 }
 
+.latest-list {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  max-width: 32rem;
+}
+
+.latest-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.latest-list li:last-child {
+  border-bottom: 0;
+}
+
+.latest-list .who {
+  flex: 1;
+  font-weight: 600;
+}
+
+.latest-list .who:last-child {
+  text-align: right;
+}
+
+.latest-list .score {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.latest-list em {
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+
+.latest-none,
+.latest-moves {
+  margin: 0 0 0.6rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.latest-moves .rank-move {
+  margin-left: 0.15rem;
+}
+
+.rank-chart svg {
+  display: block;
+  width: 100%;
+  max-width: 40rem;
+  height: auto;
+}
+
+.rc-grid { stroke: var(--border); stroke-dasharray: 3 4; }
+.rc-date { fill: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.rank-chart .player-link { border-bottom: 0; }
+.rc-player { transition: opacity 0.15s; }
+.rc-hit { fill: none; stroke: transparent; stroke-width: 14; stroke-linecap: round; }
+.rc-line { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.rc-dot { fill: var(--bg); stroke: var(--muted); stroke-width: 2; }
+.rc-name { fill: var(--fg); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.rank-chart svg:hover .rc-player,
+.rank-chart svg:focus-within .rc-player { opacity: 0.25; }
+.rank-chart svg .rc-player:hover,
+.rank-chart svg .rc-player:focus { opacity: 1; outline: none; }
+.rc-player:hover .rc-line,
+.rc-player:focus .rc-line { stroke: var(--accent); stroke-width: 3; }
+.rc-player:hover .rc-dot,
+.rc-player:focus .rc-dot { fill: var(--accent); stroke: var(--accent); }
+.rc-player:hover .rc-name,
+.rc-player:focus .rc-name { fill: var(--accent); font-weight: 800; }
+
+@media (prefers-reduced-motion: reduce) {
+  .rc-player { transition: none; }
+}
+
 .lp-bar {
   flex: 1;
   max-width: 12rem;
@@ -578,6 +658,21 @@ html:not(.pc-js) dialog.player-card:target {
 .rg-value.top {
   fill: var(--radar-accent);
 }
+
+.rank-history {
+  display: block;
+  width: 100%;
+  max-width: 26rem;
+  height: auto;
+  margin-top: 0.5rem;
+}
+
+.rh-grid { stroke: var(--card-line); stroke-dasharray: 4 4; }
+.rh-line { fill: none; stroke: var(--radar-accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.rh-dot { fill: var(--card-bg); stroke: var(--radar-accent); stroke-width: 2; }
+.rh-dot.now { fill: var(--radar-accent); }
+.rh-label { fill: var(--card-muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.rh-now { fill: var(--radar-accent); font-size: 13px; font-weight: 800; }
 
 .pc-results {
   list-style: none;

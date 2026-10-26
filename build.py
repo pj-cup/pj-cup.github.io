@@ -106,6 +106,14 @@ TEXT = {
         "max_possible": "Max possible: {n} pts if every remaining match is played",
         "all_played": "Every opponent played.",
         "left_max": "{left} left · max {max}",
+        "latest_title": "Latest results",
+        "latest_none": "No new results since {date}.",
+        "latest_moves": "Rank moves",
+        "rank_history": "Rank history",
+        "rank_history_label": "Rank by snapshot: {points}",
+        "rank_point": "{date} #{rank}",
+        "rank_chart_label": "Rank history for every player. Latest: {latest}",
+        "rank_chart_hint": "Hover or tap a line to highlight it. Click to open the player card.",
     },
     "th": {
         "col_rank": "#", "col_name": "ผู้เล่น", "col_mp": "แข่ง", "col_w": "ชนะ", "col_d": "เสมอ",
@@ -170,6 +178,14 @@ TEXT = {
         "max_possible": "แต้มสูงสุดที่ทำได้: {n} แต้ม ถ้าแข่งครบทุกนัดที่เหลือ",
         "all_played": "แข่งครบทุกคู่แล้ว",
         "left_max": "เหลือ {left} · สูงสุด {max}",
+        "latest_title": "ผลล่าสุด",
+        "latest_none": "ไม่มีผลใหม่ตั้งแต่ {date}",
+        "latest_moves": "อันดับที่ขยับ",
+        "rank_history": "ประวัติอันดับ",
+        "rank_history_label": "อันดับในแต่ละรอบข้อมูล: {points}",
+        "rank_point": "{date} อันดับ {rank}",
+        "rank_chart_label": "ประวัติอันดับของผู้เล่นทุกคน ล่าสุด: {latest}",
+        "rank_chart_hint": "ชี้หรือแตะเส้นเพื่อไฮไลต์ คลิกเพื่อเปิดการ์ดผู้เล่น",
     },
 }
 
@@ -209,6 +225,22 @@ def find_previous_snapshot(csv_dir, latest):
         if SNAPSHOT_RE.match(p.name) and p.name < latest.name
     ]
     return max(earlier, key=lambda p: p.name) if earlier else None
+
+
+def load_rank_history(csv_dir):
+    """Short date labels for every snapshot (oldest first) and each player's rank in each.
+
+    Display-only. A rank is None where the player is absent or the CSV rank isn't an integer.
+    """
+    snapshots = sorted(
+        (p for p in csv_dir.glob("*.csv") if SNAPSHOT_RE.match(p.name)), key=lambda p: p.name
+    )
+    labels = [f"{int(p.stem[6:8])}/{int(p.stem[4:6])}" for p in snapshots]
+    history = {}
+    for i, path in enumerate(snapshots):
+        for s in parse_snapshot(path)[0]:
+            history.setdefault(s["name"], [None] * len(snapshots))[i] = to_int(s["rank"])
+    return labels, history
 
 
 def parse_snapshot(path):
@@ -295,6 +327,43 @@ def compute_rank_moves(standings, prev_standings):
         if prev is not None and cur is not None:
             moves[s["name"]] = prev - cur
     return moves
+
+
+PAIR_STATUS_RANK = {"result": 2, "ongoing": 1}
+
+
+def pair_status(grid, a, b):
+    """Best status of the two mirrored cells for a pair, and the (row, col) cell carrying it."""
+    best, best_cell = 0, None
+    for row, col in ((a, b), (b, a)):
+        cls = classify_cell(grid.get(row, {}).get(col, ""), row, col)[0]
+        if PAIR_STATUS_RANK.get(cls, 0) > best:
+            best, best_cell = PAIR_STATUS_RANK[cls], (row, col)
+    return best, best_cell
+
+
+def compute_latest_changes(players, grid, prev_grid):
+    """Pairs whose match was completed or started since the previous snapshot.
+
+    Display-only. Each change is shown from one player's cell, as-is: a
+    completed match from the winner's row when its mirror is also completed.
+    """
+    changes = []
+    for i, a in enumerate(players):
+        for b in players[i + 1:]:
+            status, cell = pair_status(grid, a, b)
+            if status <= pair_status(prev_grid, a, b)[0]:
+                continue
+            row, col = cell
+            text = grid[row][col]
+            outcome = cell_outcome(text) if status == PAIR_STATUS_RANK["result"] else ""
+            mirror = grid.get(col, {}).get(row, "")
+            if outcome == "loss" and classify_cell(mirror, col, row)[0] == "result":
+                row, col, text, outcome = col, row, mirror, cell_outcome(mirror)
+            kind = "result" if status == PAIR_STATUS_RANK["result"] else "ongoing"
+            changes.append({"kind": kind, "a": row, "b": col, "text": text, "outcome": outcome})
+    changes.sort(key=lambda c: c["kind"] != "result")
+    return changes
 
 
 def format_pts_per_match(row):
@@ -396,6 +465,49 @@ def render_rules_section(standings, lang, section_class=None):
     )
 
 
+def render_latest_results(changes, moves, prev_label, lang, linked=frozenset(), section_class=None):
+    if prev_label is None:
+        return ""
+
+    def name(n):
+        return render_player_link(n) if n in linked else html.escape(n)
+
+    items = []
+    for c in changes:
+        if c["kind"] == "result":
+            chip = f'<span class="chip {c["outcome"]}">{html.escape(outcome_letter(c["outcome"], lang))}</span>'
+            score = html.escape(c["text"])
+        else:
+            chip = '<span class="chip live">•</span>'
+            score = f'{html.escape(c["text"])} <em>{te(lang, "in_progress")}</em>'
+        items.append(
+            f'<li class="{c["kind"]}">{chip}<span class="who">{name(c["a"])}</span>'
+            f'<span class="score">{score}</span><span class="who">{name(c["b"])}</span></li>'
+        )
+    body = (
+        f'    <ul class="latest-list">{"".join(items)}</ul>\n' if items
+        else f'    <p class="latest-none">{te(lang, "latest_none", date=prev_label)}</p>\n'
+    )
+
+    moved = [(n, d) for n, d in (moves or {}).items() if d]
+    if moved:
+        moved.sort(key=lambda m: -m[1])
+        body += (
+            f'    <p class="latest-moves">{te(lang, "latest_moves")}: '
+            + " · ".join(f"{name(n)} {render_rank_move(d, prev_label, lang)}" for n, d in moved)
+            + "</p>\n"
+        )
+
+    section_cls = " ".join(filter(None, ["latest", section_class]))
+    return (
+        f'  <section class="{section_cls}">\n'
+        f"    <h2>{te(lang, 'latest_title')}</h2>\n"
+        f'    <p class="standings-note">{te(lang, "since", date=prev_label)}</p>\n'
+        f"{body}"
+        "  </section>\n"
+    )
+
+
 def render_h2h_table(players, grid, lang, linked=frozenset()):
     def name_cell(p):
         return render_player_link(p) if p in linked else html.escape(p)
@@ -467,7 +579,7 @@ def lang_head(lang, page):
 
 def render_page(
     lang, standings_html, rules_html, h2h_html, source_path, snapshot_date, standings_note="",
-    player_cards="", compare="", league_progress_html="",
+    player_cards="", compare="", league_progress_html="", latest_results="", rank_chart="",
 ):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
     title = SITE_TITLE
@@ -485,6 +597,8 @@ def render_page(
         l_source=te(lang, "source", file=f"csv/{source_path.name}"),
         standings_note=standings_note,
         league_progress=league_progress_html,
+        latest_results=latest_results,
+        rank_chart=rank_chart,
         standings_table=standings_html,
         rules_section=rules_html,
         h2h_table=h2h_html,
@@ -661,6 +775,125 @@ def render_radar_svg(insights, lang):
     return "".join(parts)
 
 
+def rank_scale(n_snapshots, bottom_rank, box):
+    """x by snapshot index and y by rank (1 at the top) inside a (w, h, left, right, top, bottom) box."""
+    w, h, left, right, top, bottom = box
+
+    def x(i):
+        return left + i * (w - left - right) / (n_snapshots - 1)
+
+    def y(rank):
+        return top + (rank - 1) * (h - top - bottom) / (bottom_rank - 1)
+
+    return x, y
+
+
+def rank_segments(ranks, x, y):
+    """Polyline point strings for each run of known ranks; a None rank breaks the line."""
+    segments, segment = [], []
+    for i, r in enumerate(ranks + [None]):
+        if r is None:
+            if len(segment) > 1:
+                segments.append(" ".join(segment))
+            segment = []
+        else:
+            segment.append(f"{x(i):.1f},{y(r):.1f}")
+    return segments
+
+
+def render_rank_history_svg(ranks, labels, n_players, lang):
+    known = [(i, r) for i, r in enumerate(ranks) if r is not None]
+    if len(known) < 2:
+        return ""
+    w, h, left, right, top, bottom = box = 320, 130, 30, 30, 14, 26
+    bottom_rank = max(n_players, max(r for _, r in known), 2)
+    x, y = rank_scale(len(ranks), bottom_rank, box)
+
+    points = ", ".join(t(lang, "rank_point", date=labels[i], rank=r) for i, r in known)
+    parts = [
+        f'<svg class="rank-history" viewBox="0 0 {w} {h}" role="img" aria-label="'
+        + te(lang, "rank_history_label", points=points) + '">'
+    ]
+    for rank in (1, bottom_rank):
+        parts.append(
+            f'<line class="rh-grid" x1="{left}" y1="{y(rank):.1f}" x2="{w - right}" y2="{y(rank):.1f}"/>'
+            f'<text class="rh-label" x="{left - 6}" y="{y(rank) + 4:.1f}" text-anchor="end">#{rank}</text>'
+        )
+    parts += [f'<polyline class="rh-line" points="{seg}"/>' for seg in rank_segments(ranks, x, y)]
+    last_i, last_r = known[-1]
+    for i, r in known:
+        cls = " now" if i == last_i else ""
+        parts.append(
+            f'<circle class="rh-dot{cls}" cx="{x(i):.1f}" cy="{y(r):.1f}" r="{4.5 if cls else 3}">'
+            f"<title>{te(lang, 'rank_point', date=labels[i], rank=r)}</title></circle>"
+        )
+    parts.append(
+        f'<text class="rh-now" x="{x(last_i) + 8:.1f}" y="{y(last_r) + 4:.1f}">#{last_r}</text>'
+    )
+    for i, anchor in ((0, "start"), (len(ranks) - 1, "end")):
+        parts.append(
+            f'<text class="rh-label" x="{x(i):.1f}" y="{h - 6}" text-anchor="{anchor}">{html.escape(labels[i])}</text>'
+        )
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+def render_rank_history_section(history, labels, standings, lang):
+    """All players' ranks over every snapshot in one bump chart (index pages only)."""
+    if len(labels) < 2:
+        return ""
+    rows = [(s["name"], history.get(s["name"], [])) for s in standings]
+    rows = [(n, ranks) for n, ranks in rows if any(r is not None for r in ranks)]
+    if not rows:
+        return ""
+    bottom_rank = max(max(len(standings), 2), *(r for _, ranks in rows for r in ranks if r is not None))
+    w, left, right, top, bottom, row_h = 480, 78, 78, 14, 28, 22
+    h = top + bottom + (bottom_rank - 1) * row_h
+    box = (w, h, left, right, top, bottom)
+    x, y = rank_scale(len(labels), bottom_rank, box)
+
+    latest = ", ".join(f"{s['rank']} {s['name']}" for s in standings)
+    parts = [
+        f'<svg viewBox="0 0 {w} {h}" role="img" aria-label="'
+        + te(lang, "rank_chart_label", latest=latest) + '">'
+    ]
+    parts += [
+        f'<line class="rc-grid" x1="{left}" y1="{y(r):.1f}" x2="{w - right}" y2="{y(r):.1f}"/>'
+        for r in range(1, bottom_rank + 1)
+    ]
+    for i, anchor in ((0, "start"), (len(labels) - 1, "end")):
+        parts.append(
+            f'<text class="rc-date" x="{x(i):.1f}" y="{h - 8}" text-anchor="{anchor}">{html.escape(labels[i])}</text>'
+        )
+    for name, ranks in reversed(rows):
+        known = [(i, r) for i, r in enumerate(ranks) if r is not None]
+        segments = rank_segments(ranks, x, y)
+        (first_i, first_r), (last_i, last_r) = known[0], known[-1]
+        group = [f'<a class="player-link rc-player" href="#{player_slug(name)}">']
+        group += [f'<polyline class="rc-hit" points="{seg}"/>' for seg in segments]
+        group += [f'<polyline class="rc-line" points="{seg}"/>' for seg in segments]
+        group += [
+            f'<circle class="rc-dot" cx="{x(i):.1f}" cy="{y(r):.1f}" r="4">'
+            f"<title>{html.escape(name)} · {te(lang, 'rank_point', date=labels[i], rank=r)}</title></circle>"
+            for i, r in known
+        ]
+        group.append(
+            f'<text class="rc-name" x="{x(first_i) - 10:.1f}" y="{y(first_r) + 4:.1f}" text-anchor="end">'
+            f"{html.escape(name)} {first_r}</text>"
+            f'<text class="rc-name" x="{x(last_i) + 10:.1f}" y="{y(last_r) + 4:.1f}">'
+            f"{last_r} {html.escape(name)}</text></a>"
+        )
+        parts.append("".join(group))
+    parts.append("</svg>")
+    return (
+        '  <section class="rank-chart">\n'
+        f"    <h2>{te(lang, 'rank_history')}</h2>\n"
+        f'    <p class="standings-note">{te(lang, "rank_chart_hint")}</p>\n'
+        f'    {"".join(parts)}\n'
+        "  </section>\n"
+    )
+
+
 def format_delta(value):
     return f"+{value}" if value > 0 else ("0" if value == 0 else f"−{-value}")
 
@@ -697,7 +930,8 @@ def render_remaining_block(row, stats, lang):
 
 
 def render_player_card(
-    row, stats, insights, move, prev_row, prev_label, snapshot_date, standings, lang
+    row, stats, insights, move, prev_row, prev_label, snapshot_date, standings, lang,
+    ranks=None, labels=(),
 ):
     name = row["name"]
     slug = player_slug(name)
@@ -734,6 +968,12 @@ def render_player_card(
                 + render_tiles([(l, html.escape(v)) for l, v in since], " small")
                 + "</div>"
             )
+
+    history_svg = render_rank_history_svg(ranks, labels, len(standings), lang) if ranks else ""
+    history_html = (
+        f'<div class="pc-block"><h4>{te(lang, "rank_history")}</h4>{history_svg}</div>'
+        if history_svg else ""
+    )
 
     items = [
         f'<li><span class="chip {outcome}">{html.escape(outcome_letter(outcome, lang))}</span>'
@@ -777,6 +1017,7 @@ def render_player_card(
         + f'<div class="pc-block pc-insights"><h4>{te(lang, "player_insights")}</h4>'
         f'<p class="pc-sub">{te(lang, "insights_sub")}</p>{render_radar_svg(insights, lang)}</div>'
         + since_html
+        + history_html
         + f'<div class="pc-block"><h4>{te(lang, "results")}</h4>{results_html}</div>'
         + render_remaining_block(row, stats, lang)
         + f'<div class="pc-actions">{render_compare_picker(name, standings, lang)}'
@@ -786,13 +1027,15 @@ def render_player_card(
 
 
 def render_player_cards(
-    standings, player_data, moves, prev_standings, prev_label, snapshot_date, lang
+    standings, player_data, moves, prev_standings, prev_label, snapshot_date, lang,
+    history=None, labels=(),
 ):
     prev_rows = {s["name"]: s for s in prev_standings or []}
     cards = [
         render_player_card(
             row, *player_data[row["name"]], (moves or {}).get(row["name"]),
             prev_rows.get(row["name"]), prev_label, snapshot_date, standings, lang,
+            (history or {}).get(row["name"]), labels,
         )
         for row in standings
     ]
@@ -951,7 +1194,7 @@ def render_beta_h2h(players, grid, lang):
 
 def render_beta_page(
     lang, standings, players, grid, player_data, source_path, snapshot_date,
-    moves=None, prev_label=None, standings_note="", league_progress_html="",
+    moves=None, prev_label=None, standings_note="", league_progress_html="", latest_results="",
 ):
     template = Template((TEMPLATE_DIR / "beta.html.tmpl").read_text(encoding="utf-8"))
     description = t(lang, "description", date=snapshot_date)
@@ -972,6 +1215,7 @@ def render_beta_page(
         title_letters=render_title_letters(SITE_TITLE),
         standings_note=standings_note,
         league_progress=league_progress_html,
+        latest_results=latest_results,
         standings_board=render_beta_standings(standings, player_data, lang, moves, prev_label),
         rules_section=render_rules_section(standings, lang, section_class="reveal"),
         h2h_table=render_beta_h2h(players, grid, lang),
@@ -984,14 +1228,16 @@ def main():
 
     standings, players, grid = parse_snapshot(latest)
 
-    moves, prev_standings = None, None
+    moves, prev_standings, changes = None, None, []
     previous = find_previous_snapshot(CSV_DIR, latest)
     if previous:
         print(f"Comparing ranks with: {previous.relative_to(ROOT)}")
-        prev_standings, _, _ = parse_snapshot(previous)
+        prev_standings, _, prev_grid = parse_snapshot(previous)
         moves = compute_rank_moves(standings, prev_standings)
+        changes = compute_latest_changes(players, grid, prev_grid)
 
     player_data = compute_player_data(standings, players, grid, moves)
+    history_labels, history = load_rank_history(CSV_DIR)
 
     DOCS_DIR.mkdir(exist_ok=True)
     written = []
@@ -1010,7 +1256,8 @@ def main():
         rules_html = render_rules_section(standings, lang)
         h2h_html = render_h2h_table(players, grid, lang, linked={s["name"] for s in standings})
         player_cards = render_player_cards(
-            standings, player_data, moves, prev_standings, prev_label, snapshot_date, lang
+            standings, player_data, moves, prev_standings, prev_label, snapshot_date, lang,
+            history, history_labels,
         )
         compare_html = render_compare(
             build_compare_data(standings, players, grid, player_data, moves, snapshot_date, lang), lang
@@ -1018,6 +1265,10 @@ def main():
         page_html = render_page(
             lang, standings_html, rules_html, h2h_html, latest, snapshot_date, standings_note,
             player_cards, compare_html, progress_html,
+            render_latest_results(
+                changes, moves, prev_label, lang, linked={s["name"] for s in standings}
+            ),
+            render_rank_history_section(history, history_labels, standings, lang),
         )
 
         (DOCS_DIR / pages["index"]).write_text(page_html, encoding="utf-8")
@@ -1025,6 +1276,7 @@ def main():
             render_beta_page(
                 lang, standings, players, grid, player_data, latest, snapshot_date, moves,
                 prev_label, standings_note, progress_html,
+                render_latest_results(changes, moves, prev_label, lang, section_class="reveal"),
             ),
             encoding="utf-8",
         )
