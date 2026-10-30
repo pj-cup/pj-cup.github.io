@@ -19,14 +19,20 @@
       won: function (name) { return name + " won"; }, draw: "Draw",
       vs: "VS", versus: " vs ", h2hCaps: "HEAD-TO-HEAD", insightsCaps: "PLAYER INSIGHTS",
       cmpNote: "Season to date · insights out of 10",
-      snapshot: "Snapshot ", rankNo: "RANK #"
+      snapshot: "Snapshot ", rankNo: "RANK #",
+      setGame: function (set, game) { return "Set " + set + " · Game " + game; },
+      set: "Set", replay: "Replay", skip: "Skip",
+      illustrative: "Game order is illustrative — only set scores are recorded."
     },
     th: {
       notPlayed: "ยังไม่ได้แข่ง", inProgress: "กำลังแข่ง — ยังไม่นับคะแนน",
       won: function (name) { return name + " ชนะ"; }, draw: "เสมอ",
       vs: "VS", versus: " พบ ", h2hCaps: "ผลการพบกัน", insightsCaps: "ค่าพลังผู้เล่น",
       cmpNote: "ตลอดฤดูกาล · คะแนนเต็ม 10",
-      snapshot: "ข้อมูล ณ ", rankNo: "อันดับ #"
+      snapshot: "ข้อมูล ณ ", rankNo: "อันดับ #",
+      setGame: function (set, game) { return "เซต " + set + " · เกม " + game; },
+      set: "เซต", replay: "ดูอีกครั้ง", skip: "ข้าม",
+      illustrative: "ลำดับเกมเป็นภาพจำลอง — บันทึกไว้เฉพาะสกอร์ของแต่ละเซต"
     }
   };
   var L = I18N[root.lang] || I18N.en;
@@ -38,6 +44,7 @@
     cmpData = JSON.parse(document.getElementById("compare-data").textContent);
   } catch (e) {}
   var LBL = (cmpData && cmpData.labels) || {};
+  var matchDlg = document.getElementById("match");
 
   function cardFor(hash) {
     if (!hash || hash.indexOf("#player-") !== 0) return null;
@@ -73,6 +80,15 @@
       }
       return;
     }
+    var match = e.target.closest && e.target.closest("a.match-link");
+    if (match) {
+      var keys = matchFor(match.getAttribute("href"));
+      if (keys) {
+        e.preventDefault();
+        openMatch(keys[0], keys[1]);
+      }
+      return;
+    }
     var close = e.target.closest && e.target.closest(".pc-close");
     if (close && current) {
       e.preventDefault();
@@ -96,7 +112,7 @@
         setHash("");
       }
     });
-    if (dlg === cmpDlg) return;
+    if (dlg === cmpDlg || dlg === matchDlg) return;
     var btn = dlg.querySelector(".pc-share");
     if (btn) {
       btn.hidden = false;
@@ -283,17 +299,220 @@
     prepareCompare(ka, kb);
   }
 
-  // "#compare-<a>-vs-<b>": match against known keys so a name containing "-vs-" can't mis-split.
-  function compareFor(hash) {
-    if (!cmpData || !cmpDlg || !hash || hash.indexOf("#compare-") !== 0) return null;
-    var rest = decodeURIComponent(hash.slice("#compare-".length));
+  // "#<prefix><a>-vs-<b>": match against known keys so a name containing "-vs-" can't mis-split.
+  function pairFor(prefix, hash, ok) {
+    if (!cmpData || !hash || hash.indexOf(prefix) !== 0) return null;
+    var rest = decodeURIComponent(hash.slice(prefix.length));
     for (var ka in cmpData.players) {
       if (rest.indexOf(ka + "-vs-") === 0) {
         var kb = rest.slice(ka.length + 4);
-        if (comparePlayers(ka, kb)) return [ka, kb];
+        if (ok(ka, kb)) return [ka, kb];
       }
     }
     return null;
+  }
+
+  function compareFor(hash) {
+    return cmpDlg ? pairFor("#compare-", hash, comparePlayers) : null;
+  }
+
+  /* ---------- match replay: a mini court rally, game by game, ending on the CSV score ---------- */
+
+  // Only the row player's cell (its own perspective) opens a replay, exactly as clicked.
+  function matchCell(ka, kb) {
+    return comparePlayers(ka, kb) && (cmpData.h2h[ka] || {})[kb] || null;
+  }
+
+  function matchFor(hash) {
+    return matchDlg ? pairFor("#match-", hash, matchCell) : null;
+  }
+
+  function seeded(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+    return function () { // mulberry32
+      h = (h + 0x6d2b79f5) | 0;
+      var x = Math.imul(h ^ (h >>> 15), 1 | h);
+      x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
+      return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Per set, a shuffled list of game winners ("a"/"b") that closes on the set winner.
+  function gameOrder(sets, rand) {
+    return sets.map(function (set) {
+      var games = [], i;
+      for (i = 0; i < set[0]; i++) games.push("a");
+      for (i = 0; i < set[1]; i++) games.push("b");
+      for (i = games.length - 1; i > 0; i--) {
+        var j = Math.floor(rand() * (i + 1)), tmp = games[i];
+        games[i] = games[j];
+        games[j] = tmp;
+      }
+      if (set[0] !== set[1]) {
+        var w = set[0] > set[1] ? "a" : "b";
+        games.push(games.splice(games.lastIndexOf(w), 1)[0]);
+      }
+      return games;
+    });
+  }
+
+  var CT = { x0: 24, x1: 296, y0: 22, y1: 138 }; // court box in the 320×160 viewBox
+  var matchRun = 0; // bumped to cancel a running replay
+
+  function matchCourt() {
+    var mx = (CT.x0 + CT.x1) / 2, my = (CT.y0 + CT.y1) / 2, alley = 14;
+    function line(x1, y1, x2, y2, cls) {
+      return '<line x1="' + x1 + '" y1="' + y1 + '" x2="' + x2 + '" y2="' + y2 + '"' + (cls ? ' class="' + cls + '"' : "") + "/>";
+    }
+    return '<svg class="mt-court" viewBox="0 0 320 160" aria-hidden="true">' +
+      '<rect class="mt-surface" x="4" y="4" width="312" height="152" rx="10"/>' +
+      '<g class="mt-lines"><rect x="' + CT.x0 + '" y="' + CT.y0 + '" width="' + (CT.x1 - CT.x0) + '" height="' + (CT.y1 - CT.y0) + '"/>' +
+      line(CT.x0, CT.y0 + alley, CT.x1, CT.y0 + alley) + line(CT.x0, CT.y1 - alley, CT.x1, CT.y1 - alley) +
+      line(mx - 70, CT.y0 + alley, mx - 70, CT.y1 - alley) + line(mx + 70, CT.y0 + alley, mx + 70, CT.y1 - alley) +
+      line(mx - 70, my, mx + 70, my) + "</g>" +
+      line(mx, CT.y0 - 8, mx, CT.y1 + 8, "mt-net") +
+      '<ellipse class="mt-shadow" rx="4" ry="2" cx="-20" cy="-20"/>' +
+      '<circle class="mt-p a" r="7" cx="' + (CT.x0 + 6) + '" cy="' + my + '"/>' +
+      '<circle class="mt-p b" r="7" cx="' + (CT.x1 - 6) + '" cy="' + my + '"/>' +
+      '<circle class="mt-ball" r="3.6" cx="-20" cy="-20"/>' +
+      "</svg>";
+  }
+
+  function openMatch(ka, kb) {
+    var cell = matchCell(ka, kb);
+    if (!cell) return;
+    var a = cmpData.players[ka], b = cmpData.players[kb];
+    var sets = [], m, re = /(\d+)\s*-\s*(\d+)/g;
+    while ((m = re.exec(cell[1]))) sets.push([parseInt(m[1], 10), parseInt(m[2], 10)]);
+    var head = sets.map(function (_, i) { return "<th>" + esc(L.set) + " " + (i + 1) + "</th>"; }).join("");
+    function row(p, side) {
+      return '<tr class="' + side + '"><th><i></i>' + esc(p.name) + "</th>" +
+        sets.map(function (_, i) { return '<td data-set="' + i + '">0</td>'; }).join("") + "</tr>";
+    }
+    matchDlg.querySelector(".cmp-title").textContent = a.name + L.versus + b.name;
+    matchDlg.querySelector(".mt-body").innerHTML =
+      '<p class="mt-raw">' + esc(cell[1]) + "</p>" + matchCourt() +
+      '<table class="mt-score"><thead><tr><th></th>' + head + "</tr></thead><tbody>" +
+      row(a, "a") + row(b, "b") + "</tbody></table>" +
+      '<p class="mt-status" aria-live="polite"></p>' +
+      '<p class="pc-sub mt-note">' + esc(L.illustrative) + "</p>" +
+      '<div class="pc-actions mt-actions"><button class="pc-share mt-skip" type="button">' + esc(L.skip) + "</button>" +
+      '<button class="pc-share mt-replay" type="button" hidden>' + esc(L.replay) + "</button></div>";
+    var final = cell[0] === "ongoing" ? L.inProgress :
+      cell[2] === "win" ? L.won(a.name) : cell[2] === "loss" ? L.won(b.name) : L.draw;
+    var body = matchDlg.querySelector(".mt-body");
+    var done = cell[0] === "result"; // an in-progress set has no winner yet
+    var start = function () { playMatch(body, sets, gameOrder(sets, seeded(ka + "|" + kb + "|" + cell[1])), final, done); };
+    body.querySelector(".mt-replay").addEventListener("click", start);
+    body.querySelector(".mt-skip").addEventListener("click", function () {
+      matchRun++;
+      finishMatch(body, sets, final, done);
+    });
+    show(matchDlg, "#match-" + ka + "-vs-" + kb);
+    matchDlg.scrollTop = 0;
+    start();
+  }
+
+  function finishMatch(body, sets, final, done) {
+    sets.forEach(function (set, i) { setScore(body, i, set[0], set[1], done); });
+    var ball = body.querySelector(".mt-ball"), shadow = body.querySelector(".mt-shadow");
+    ball.setAttribute("cx", -20);
+    shadow.setAttribute("cx", -20);
+    body.querySelector(".mt-status").textContent = final;
+    body.querySelector(".mt-skip").hidden = true;
+    body.querySelector(".mt-replay").hidden = false;
+  }
+
+  function setScore(body, i, ga, gb, done) {
+    var tds = body.querySelectorAll('.mt-score td[data-set="' + i + '"]');
+    tds[0].textContent = ga;
+    tds[1].textContent = gb;
+    tds[0].classList.toggle("won", !!done && ga > gb);
+    tds[1].classList.toggle("won", !!done && gb > ga);
+  }
+
+  function playMatch(body, sets, order, final, done) {
+    var run = ++matchRun;
+    var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    body.querySelector(".mt-skip").hidden = false;
+    body.querySelector(".mt-replay").hidden = true;
+    sets.forEach(function (_, i) { setScore(body, i, 0, 0, false); });
+    if (reduce || !window.requestAnimationFrame) return finishMatch(body, sets, final, done);
+
+    var rand = seeded(order.join());
+    var ball = body.querySelector(".mt-ball"), shadow = body.querySelector(".mt-shadow");
+    var pl = { a: body.querySelector(".mt-p.a"), b: body.querySelector(".mt-p.b") };
+    var hitX = { a: CT.x0 + 6, b: CT.x1 - 6 };
+    var pos = { a: (CT.y0 + CT.y1) / 2, b: (CT.y0 + CT.y1) / 2 };
+    pl.a.setAttribute("cy", pos.a);
+    pl.b.setAttribute("cy", pos.b);
+    var status = body.querySelector(".mt-status");
+    var total = order.reduce(function (n, g) { return n + g.length; }, 0);
+    var gameMs = Math.max(450, Math.min(1100, 7000 / Math.max(total, 1)));
+
+    // Flatten into shots: winner hits last, the final shot runs past the loser's baseline.
+    var steps = [];
+    order.forEach(function (games, si) {
+      var score = [0, 0];
+      games.forEach(function (w, gi) {
+        var shots = 2 + Math.floor(rand() * 3), other = w === "a" ? "b" : "a";
+        var hitter = shots % 2 ? w : other, y = pos[hitter];
+        for (var k = 0; k < shots; k++) {
+          var last = k === shots - 1, to = hitter === "a" ? "b" : "a";
+          var ty = CT.y0 + 10 + rand() * (CT.y1 - CT.y0 - 20);
+          steps.push({
+            set: si, game: gi, from: hitter, to: to, y0: y, y1: ty, last: last,
+            ms: gameMs * 0.8 / shots
+          });
+          hitter = to;
+          y = ty;
+        }
+        score[w === "a" ? 0 : 1]++;
+        steps.push({ set: si, game: gi, pause: true, ms: gameMs * 0.2, score: score.slice(), w: w,
+          done: done && gi === games.length - 1 });
+      });
+    });
+
+    var idx = 0, t0 = null;
+    function frame(ts) {
+      if (run !== matchRun || !matchDlg.open) return;
+      if (t0 === null) t0 = ts;
+      var st = steps[idx];
+      if (!st) return finishMatch(body, sets, final, done);
+      var p = Math.min(1, (ts - t0) / st.ms);
+      if (st.pause) {
+        if (p >= 1) {
+          setScore(body, st.set, st.score[0], st.score[1], st.done);
+          var td = body.querySelectorAll('.mt-score td[data-set="' + st.set + '"]')[st.w === "a" ? 0 : 1];
+          td.classList.remove("pulse");
+          void td.offsetWidth; // restart the pulse
+          td.classList.add("pulse");
+        }
+      } else {
+        status.textContent = L.setGame(st.set + 1, st.game + 1);
+        // The winning shot carries on past the receiver.
+        var x1 = st.last ? (st.to === "a" ? 2 : 318) : hitX[st.to];
+        var x = hitX[st.from] + (x1 - hitX[st.from]) * p;
+        var y = st.y0 + (st.y1 - st.y0) * p;
+        var lift = Math.sin(Math.PI * Math.min(p * 1.15, 1)) * 16; // bounce just before arrival
+        ball.setAttribute("cx", x.toFixed(1));
+        ball.setAttribute("cy", (y - lift).toFixed(1));
+        shadow.setAttribute("cx", x.toFixed(1));
+        shadow.setAttribute("cy", (y + 4).toFixed(1));
+        // The receiver chases the ball; on the winning shot they only get partway.
+        var reach = st.last ? 0.45 : 1;
+        var py = pos[st.to] + (st.y1 - pos[st.to]) * Math.min(1, p * 1.3) * reach;
+        pl[st.to].setAttribute("cy", py.toFixed(1));
+        if (p >= 1) pos[st.to] = py;
+      }
+      if (p >= 1) {
+        idx++;
+        t0 = ts;
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
   }
 
   /* ---------- share card as a PNG ---------- */
@@ -614,9 +833,11 @@
     return canvas;
   }
 
-  /* ---------- deep links: #player-x / #compare-a-vs-b (last, once everything is set up) ---------- */
+  /* ---------- deep links: #player-x / #compare-a-vs-b / #match-a-vs-b (last, once everything is set up) ---------- */
 
   function fromHash() {
+    var match = matchFor(location.hash);
+    if (match) return openMatch(match[0], match[1]);
     var pair = compareFor(location.hash);
     if (pair) return openCompare(pair[0], pair[1]);
     var dlg = cardFor(location.hash);

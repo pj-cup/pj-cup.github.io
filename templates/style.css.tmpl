@@ -941,6 +941,107 @@ html:not(.pc-js) dialog.player-card:target {
   to { transform: scale(1); }
 }
 
+/* match replay (one dialog, filled in by player-card.js; game order is illustrative) */
+.match-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.match-link:hover,
+.match-link:focus-visible {
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+
+.mt-raw {
+  margin: 0.6rem 0 0.5rem;
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-court {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.mt-surface { fill: #1f6b46; }
+.mt-lines rect, .mt-lines line { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.5; }
+.mt-net { stroke: #e8eef5; stroke-width: 2.5; stroke-dasharray: 2 2; }
+.mt-shadow { fill: rgba(0, 0, 0, 0.35); }
+.mt-ball { fill: #e4f53b; stroke: #0a1424; stroke-width: 0.8; }
+.mt-p { stroke: #0a1424; stroke-width: 1.5; }
+.mt-p.a { fill: var(--radar-accent); }
+.mt-p.b { fill: var(--cmp-b); }
+
+.mt-score {
+  width: 100%;
+  margin-top: 0.7rem;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.mt-score th,
+.mt-score td {
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  background: none;
+  text-align: center;
+}
+
+.mt-score thead th {
+  color: var(--card-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mt-score tbody th {
+  text-align: left;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.mt-score tbody th i {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-right: 0.45rem;
+  border-radius: 999px;
+}
+
+.mt-score tr.a th i { background: var(--radar-accent); }
+.mt-score tr.b th i { background: var(--cmp-b); }
+
+.mt-score tbody td {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--card-muted);
+}
+
+.mt-score tbody td.won { color: var(--card-fg); font-weight: 800; }
+.mt-score tr.a td.won { color: var(--radar-accent); }
+.mt-score tr.b td.won { color: var(--cmp-b); }
+
+.mt-status {
+  min-height: 1.4em;
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+}
+
+.mt-actions .pc-share[hidden] { display: none; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .mt-score td.pulse { animation: mt-pulse 0.35s ease-out; }
+}
+
+@keyframes mt-pulse {
+  from { transform: scale(1.5); color: var(--card-fg); }
+  to { transform: scale(1); }
+}
+
 @media (max-width: 480px) {
   header h1 { font-size: 1.4rem; }
 }

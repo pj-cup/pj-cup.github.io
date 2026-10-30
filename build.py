@@ -91,6 +91,7 @@ TEXT = {
         "share_card": "Share card image",
         "compare": "Compare",
         "share_compare": "Share compare image",
+        "match_replay": "Match replay",
         "tap_to_skip": "TAP TO SKIP",
         "classic_view": "Classic view",
         "mp_count": "{n} MP",
@@ -163,6 +164,7 @@ TEXT = {
         "share_card": "แชร์รูปการ์ด",
         "compare": "เปรียบเทียบ",
         "share_compare": "แชร์รูปเปรียบเทียบ",
+        "match_replay": "รีเพลย์การแข่งขัน",
         "tap_to_skip": "แตะเพื่อข้าม",
         "classic_view": "มุมมองคลาสสิก",
         "mp_count": "{n} นัด",
@@ -521,9 +523,14 @@ def render_h2h_table(players, grid, lang, linked=frozenset()):
             raw = grid.get(row_player, {}).get(col_player, "")
             cls, text, title = classify_cell(raw, row_player, col_player, lang)
             title_attr = f' title="{html.escape(title)}"' if title else ""
-            row_cells.append(
-                f'<td class="cell-{cls}"{title_attr}>{html.escape(text)}</td>'
-            )
+            inner = html.escape(text)
+            if cls in ("result", "ongoing"):
+                # Opens the match replay (player-card.js); the cell text stays verbatim.
+                inner = (
+                    f'<a class="match-link" href="#match-{compare_key(row_player)}'
+                    f'-vs-{compare_key(col_player)}">{inner}</a>'
+                )
+            row_cells.append(f'<td class="cell-{cls}"{title_attr}>{inner}</td>')
         body_rows.append(f"<tr>{''.join(row_cells)}</tr>")
 
     return (
@@ -580,6 +587,7 @@ def lang_head(lang, page):
 def render_page(
     lang, standings_html, rules_html, h2h_html, source_path, snapshot_date, standings_note="",
     player_cards="", compare="", league_progress_html="", latest_results="", rank_chart="",
+    match_dialog="",
 ):
     template = Template((TEMPLATE_DIR / "index.html.tmpl").read_text(encoding="utf-8"))
     title = SITE_TITLE
@@ -604,6 +612,7 @@ def render_page(
         h2h_table=h2h_html,
         player_cards=player_cards,
         compare=compare,
+        match_dialog=match_dialog,
     )
 
 
@@ -1103,6 +1112,18 @@ def render_compare(compare_data, lang):
     )
 
 
+def render_match_dialog(lang):
+    """Empty match-replay dialog; player-card.js fills it from compare-data on demand."""
+    return (
+        '<dialog class="player-card match-card" id="match" aria-labelledby="match-title">'
+        '<div class="pc-inner">'
+        f'<div class="pc-head"><h3 class="cmp-title" id="match-title">{te(lang, "match_replay")}</h3>'
+        f'<a class="pc-close" href="#" aria-label="{te(lang, "close")}">&times;</a></div>'
+        '<div class="mt-body"></div>'
+        "</div></dialog>"
+    )
+
+
 def render_title_letters(title):
     return "".join(
         f'<span class="ltr" style="--i:{i}">{"&nbsp;" if ch == " " else html.escape(ch)}</span>'
@@ -1269,6 +1290,7 @@ def main():
                 changes, moves, prev_label, lang, linked={s["name"] for s in standings}
             ),
             render_rank_history_section(history, history_labels, standings, lang),
+            render_match_dialog(lang),
         )
 
         (DOCS_DIR / pages["index"]).write_text(page_html, encoding="utf-8")
