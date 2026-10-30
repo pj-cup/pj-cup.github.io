@@ -68,7 +68,6 @@ TEXT = {
         "h2h": "Head-to-Head",
         "snapshot": "Snapshot: {date}",
         "source": "Source: {file}",
-        "rank_change_vs": "Rank change vs {date}",
         "theme_toggle": "Toggle dark mode",
         "lang_toggle": "Language",
         "axis_ATTACK": "ATTACK", "axis_DOMINANCE": "DOMINANCE", "axis_FORM": "FORM",
@@ -141,7 +140,6 @@ TEXT = {
         "h2h": "ผลการพบกัน",
         "snapshot": "ข้อมูล ณ {date}",
         "source": "ที่มา: {file}",
-        "rank_change_vs": "อันดับเทียบกับ {date}",
         "theme_toggle": "สลับโหมดมืด",
         "lang_toggle": "ภาษา",
         "axis_ATTACK": "บุก", "axis_DOMINANCE": "เหนือชั้น", "axis_FORM": "ฟอร์ม",
@@ -589,7 +587,7 @@ def lang_head(lang, page):
 
 
 def render_page(
-    lang, standings_html, rules_html, h2h_html, source_path, snapshot_date, standings_note="",
+    lang, standings_html, rules_html, h2h_html, source_path, snapshot_date,
     player_cards="", compare="", league_progress_html="", latest_results="", rank_chart="",
     match_dialog="",
 ):
@@ -607,7 +605,6 @@ def render_page(
         l_standings=te(lang, "standings"),
         l_h2h=te(lang, "h2h"),
         l_source=te(lang, "source", file=f"csv/{source_path.name}"),
-        standings_note=standings_note,
         league_progress=league_progress_html,
         latest_results=latest_results,
         rank_chart=rank_chart,
@@ -1219,7 +1216,7 @@ def render_beta_h2h(players, grid, lang):
 
 def render_beta_page(
     lang, standings, players, grid, player_data, source_path, snapshot_date,
-    moves=None, prev_label=None, standings_note="", league_progress_html="", latest_results="",
+    moves=None, prev_label=None, league_progress_html="", latest_results="",
 ):
     template = Template((TEMPLATE_DIR / "beta.html.tmpl").read_text(encoding="utf-8"))
     description = t(lang, "description", date=snapshot_date)
@@ -1238,7 +1235,6 @@ def render_beta_page(
         l_h2h=te(lang, "h2h"),
         l_source=te(lang, "source", file=f"csv/{source_path.name}"),
         title_letters=render_title_letters(SITE_TITLE),
-        standings_note=standings_note,
         league_progress=league_progress_html,
         latest_results=latest_results,
         standings_board=render_beta_standings(standings, player_data, lang, moves, prev_label),
@@ -1268,13 +1264,7 @@ def main():
     written = []
     for lang, pages in LANGS.items():
         snapshot_date = format_snapshot_date(latest, lang)
-        prev_label, standings_note = None, ""
-        if previous:
-            prev_label = format_snapshot_date(previous, lang)
-            standings_note = (
-                '    <p class="standings-note">'
-                f'{te(lang, "rank_change_vs", date=prev_label)}</p>\n'
-            )
+        prev_label = format_snapshot_date(previous, lang) if previous else None
 
         standings_html = render_standings_table(standings, player_data, lang, moves, prev_label)
         progress_html = render_league_progress(players, grid, lang)
@@ -1288,7 +1278,7 @@ def main():
             build_compare_data(standings, players, grid, player_data, moves, snapshot_date, lang), lang
         )
         page_html = render_page(
-            lang, standings_html, rules_html, h2h_html, latest, snapshot_date, standings_note,
+            lang, standings_html, rules_html, h2h_html, latest, snapshot_date,
             player_cards, compare_html, progress_html,
             render_latest_results(
                 changes, moves, prev_label, lang, linked={s["name"] for s in standings}
@@ -1301,7 +1291,7 @@ def main():
         (DOCS_DIR / pages["beta"]).write_text(
             render_beta_page(
                 lang, standings, players, grid, player_data, latest, snapshot_date, moves,
-                prev_label, standings_note, progress_html,
+                prev_label, progress_html,
                 render_latest_results(changes, moves, prev_label, lang, section_class="reveal")
                 if SHOW_LATEST_RESULTS else "",
             ),
