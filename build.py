@@ -552,6 +552,10 @@ def format_snapshot_date(path, lang="en"):
 SITE_URL = "https://pj-cup.github.io/"
 SITE_TITLE = "PJ Cup Season1"
 
+# Hidden for now; flip to True to render the section again (the code is kept).
+SHOW_LATEST_RESULTS = False  # "Latest results" on every page
+SHOW_RANK_CHART = False  # all-player "Rank history" section on the index pages
+
 
 def page_url(lang, page):
     """Public URL of a page; the Thai index is the site root."""
@@ -1288,8 +1292,8 @@ def main():
             player_cards, compare_html, progress_html,
             render_latest_results(
                 changes, moves, prev_label, lang, linked={s["name"] for s in standings}
-            ),
-            render_rank_history_section(history, history_labels, standings, lang),
+            ) if SHOW_LATEST_RESULTS else "",
+            render_rank_history_section(history, history_labels, standings, lang) if SHOW_RANK_CHART else "",
             render_match_dialog(lang),
         )
 
@@ -1298,7 +1302,8 @@ def main():
             render_beta_page(
                 lang, standings, players, grid, player_data, latest, snapshot_date, moves,
                 prev_label, standings_note, progress_html,
-                render_latest_results(changes, moves, prev_label, lang, section_class="reveal"),
+                render_latest_results(changes, moves, prev_label, lang, section_class="reveal")
+                if SHOW_LATEST_RESULTS else "",
             ),
             encoding="utf-8",
         )
