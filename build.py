@@ -68,6 +68,11 @@ TEXT = {
         "h2h": "Head-to-Head",
         "snapshot": "Snapshot: {date}",
         "source": "Source: {file}",
+        "legend_row": "Each cell is the row player's score",
+        "legend_win": "Win", "legend_draw": "Draw", "legend_loss": "Loss",
+        "legend_tba": "{tba} = planned, not played yet",
+        "legend_ongoing": "In progress, not counted yet",
+        "legend_tap": "Tap a score to replay",
         "theme_toggle": "Toggle dark mode",
         "lang_toggle": "Language",
         "axis_ATTACK": "ATTACK", "axis_DOMINANCE": "DOMINANCE", "axis_FORM": "FORM",
@@ -140,6 +145,11 @@ TEXT = {
         "h2h": "ผลการพบกัน",
         "snapshot": "ข้อมูล ณ {date}",
         "source": "ที่มา: {file}",
+        "legend_row": "สกอร์ในแต่ละช่องเป็นของผู้เล่นในแถว",
+        "legend_win": "ชนะ", "legend_draw": "เสมอ", "legend_loss": "แพ้",
+        "legend_tba": "{tba} = นัดไว้ ยังไม่ได้แข่ง",
+        "legend_ongoing": "กำลังแข่ง ยังไม่นับคะแนน",
+        "legend_tap": "แตะสกอร์เพื่อดูรีเพลย์",
         "theme_toggle": "สลับโหมดมืด",
         "lang_toggle": "ภาษา",
         "axis_ATTACK": "บุก", "axis_DOMINANCE": "เหนือชั้น", "axis_FORM": "ฟอร์ม",
@@ -410,10 +420,15 @@ def render_rank_move(delta, prev_label, lang):
     )
 
 
+def col_class(key, numeric):
+    """Per-column class (`col-pts`, ...) for sticky/hidden/emphasised standings columns."""
+    return f"col-{key} num" if numeric else f"col-{key}"
+
+
 def render_standings_table(standings, player_data, lang, moves=None, prev_label=None):
     def th(key, numeric):
         tip = TEXT[lang].get(f"tip_{key}")
-        attrs = (' class="num"' if numeric else "") + (f' title="{html.escape(tip)}"' if tip else "")
+        attrs = f' class="{col_class(key, numeric)}"' + (f' title="{html.escape(tip)}"' if tip else "")
         return f"<th{attrs}>{te(lang, 'col_' + key)}</th>"
 
     thead_cells = "".join(th(key, numeric) for key, numeric in STANDINGS_COLUMNS)
@@ -434,12 +449,11 @@ def render_standings_table(standings, player_data, lang, moves=None, prev_label=
                 value = render_player_link(row_data["name"])
             if key == "rank" and moves and row_data["name"] in moves:
                 value += " " + render_rank_move(moves[row_data["name"]], prev_label, lang)
-            cls = ' class="num"' if numeric else ""
-            cells.append(f"<td{cls}>{value}</td>")
+            cells.append(f'<td class="{col_class(key, numeric)}">{value}</td>')
         body_rows.append(f"<tr>{''.join(cells)}</tr>")
 
     return (
-        "<table>\n"
+        '<table class="standings">\n'
         f"<thead><tr>{thead_cells}</tr></thead>\n"
         f"<tbody>{''.join(body_rows)}</tbody>\n"
         "</table>"
@@ -528,7 +542,9 @@ def render_h2h_table(players, grid, lang, linked=frozenset()):
                     f'<a class="match-link" href="#match-{compare_key(row_player)}'
                     f'-vs-{compare_key(col_player)}">{inner}</a>'
                 )
-            row_cells.append(f'<td class="cell-{cls}"{title_attr}>{inner}</td>')
+            # Display-only win/draw/loss tint; the text and the standings are untouched.
+            outcome = f" {cell_outcome(raw)}" if cls == "result" else ""
+            row_cells.append(f'<td class="cell-{cls}{outcome.rstrip()}"{title_attr}>{inner}</td>')
         body_rows.append(f"<tr>{''.join(row_cells)}</tr>")
 
     return (
@@ -537,6 +553,19 @@ def render_h2h_table(players, grid, lang, linked=frozenset()):
         f"<tbody>{''.join(body_rows)}</tbody>\n"
         "</table>"
     )
+
+
+def render_h2h_legend(lang):
+    sw = lambda kind: f'<span class="lg-item"><i class="lg-sw {kind}"></i>{te(lang, "legend_" + kind)}</span>'
+    parts = [
+        f'<span class="lg-item">{te(lang, "legend_row")}</span>',
+        sw("win"), sw("draw"), sw("loss"),
+        f'<span class="lg-item"><i class="lg-tba">{te(lang, "tba_text")}</i> '
+        f'{html.escape(t(lang, "legend_tba", tba="").strip())}</span>',
+        f'<span class="lg-item"><i class="lg-ongoing">\u25CF</i> {te(lang, "legend_ongoing")}</span>',
+        f'<span class="lg-item">{te(lang, "legend_tap")}</span>',
+    ]
+    return f'    <p class="h2h-legend">{"".join(parts)}</p>\n'
 
 
 def format_snapshot_date(path, lang="en"):
@@ -605,6 +634,7 @@ def render_page(
         l_standings=te(lang, "standings"),
         l_h2h=te(lang, "h2h"),
         l_source=te(lang, "source", file=f"csv/{source_path.name}"),
+        h2h_legend=render_h2h_legend(lang),
         league_progress=league_progress_html,
         latest_results=latest_results,
         rank_chart=rank_chart,

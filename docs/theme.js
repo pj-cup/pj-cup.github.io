@@ -48,5 +48,38 @@
     }
     document.addEventListener("click", keepHash);
     document.addEventListener("auxclick", keepHash);
+
+    // Fade the right edge of a table while more columns are scrolled out of view.
+    var scrollers = document.querySelectorAll(".table-scroll");
+    function updateFade(el) {
+      el.classList.toggle("more-right", el.scrollLeft + el.clientWidth < el.scrollWidth - 2);
+    }
+    Array.prototype.forEach.call(scrollers, function (el) {
+      updateFade(el);
+      el.addEventListener("scroll", function () { updateFade(el); }, { passive: true });
+    });
+    window.addEventListener("resize", function () {
+      Array.prototype.forEach.call(scrollers, updateFade);
+    });
+
+    // Head-to-head crosshair: mark the hovered cell's column (row hover is plain CSS).
+    var grid = document.querySelector("table.h2h");
+    if (grid) {
+      var marked = [];
+      function clearMarks() {
+        marked.forEach(function (c) { c.classList.remove("xh"); });
+        marked = [];
+      }
+      grid.addEventListener("mouseover", function (e) {
+        var cell = e.target.closest("td, th");
+        clearMarks();
+        if (!cell || cell.cellIndex < 1) return;
+        Array.prototype.forEach.call(grid.rows, function (row) {
+          var c = row.cells[cell.cellIndex];
+          if (c) { c.classList.add("xh"); marked.push(c); }
+        });
+      });
+      grid.addEventListener("mouseleave", clearMarks);
+    }
   });
 })();

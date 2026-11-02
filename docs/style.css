@@ -8,6 +8,10 @@
   --accent: #1c7a3e;
   --warn: #b45309;
   --down: #c0392b;
+  --win-bg: rgba(28, 122, 62, 0.16);
+  --draw-bg: rgba(234, 179, 8, 0.24);
+  --loss-bg: rgba(220, 38, 38, 0.16);
+  --xh-bg: rgba(28, 122, 62, 0.1);
   --card-bg: #12233d;
   --card-line: rgba(255, 255, 255, 0.1);
   --card-fg: #f2f6fb;
@@ -36,6 +40,10 @@
     --accent: #4fd07d;
     --warn: #f0a848;
     --down: #ff7b6b;
+    --win-bg: rgba(79, 208, 125, 0.2);
+    --draw-bg: rgba(250, 204, 21, 0.15);
+    --loss-bg: rgba(248, 72, 72, 0.24);
+    --xh-bg: rgba(79, 208, 125, 0.1);
     --card-bg: #0e1b30;
     --card-line: rgba(160, 190, 230, 0.22);
   }
@@ -51,6 +59,10 @@
   --accent: #4fd07d;
   --warn: #f0a848;
   --down: #ff7b6b;
+  --win-bg: rgba(79, 208, 125, 0.2);
+  --draw-bg: rgba(250, 204, 21, 0.15);
+  --loss-bg: rgba(248, 72, 72, 0.24);
+  --xh-bg: rgba(79, 208, 125, 0.1);
   --card-bg: #0e1b30;
   --card-line: rgba(160, 190, 230, 0.22);
 }
@@ -179,6 +191,12 @@ section h2 {
   border-radius: 8px;
 }
 
+/* theme.js sets .more-right while columns are hidden past the right edge. */
+.table-scroll.more-right {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+}
+
 table {
   border-collapse: collapse;
   width: 100%;
@@ -210,6 +228,33 @@ td.num, th.num {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* standings: sticky # + player, emphasised points */
+.standings { --rank-w: 4.2rem; }
+
+.standings .col-rank,
+.standings .col-name {
+  position: sticky;
+  z-index: 1;
+  background: var(--bg);
+}
+
+.standings .col-rank { left: 0; width: var(--rank-w); min-width: var(--rank-w); }
+.standings .col-name { left: var(--rank-w); }
+.standings thead th:is(.col-rank, .col-name),
+.standings tbody tr:nth-child(even) > td:is(.col-rank, .col-name) { background: var(--stripe); }
+.standings tbody tr:hover > td:is(.col-rank, .col-name) { background: var(--accent-soft); }
+
+.standings .col-pts { font-weight: 700; }
+.standings td.col-pts { color: var(--accent); }
+
+.standings tbody tr:nth-child(-n+3) > td.col-rank {
+  box-shadow: inset 3px 0 var(--accent);
+  font-weight: 700;
+}
+
+/* Only real moves; "same rank" keeps its slot so the column doesn't shift. */
+.standings .rank-move.same { visibility: hidden; }
 
 .standings-note {
   margin: -0.4rem 0 0.75rem;
@@ -414,6 +459,32 @@ td.num, th.num {
 .cell-result {
   font-variant-numeric: tabular-nums;
 }
+
+.h2h td.win { background-color: var(--win-bg); }
+.h2h td.draw { background-color: var(--draw-bg); }
+.h2h td.loss { background-color: var(--loss-bg); }
+
+/* crosshair: theme.js marks the hovered cell's column (row hover is CSS) */
+.h2h td.xh:not(.cell-diag) { background-image: linear-gradient(var(--xh-bg), var(--xh-bg)); }
+.h2h tbody tr:hover > td:not(.cell-diag) { background-image: linear-gradient(var(--xh-bg), var(--xh-bg)); }
+.h2h tbody tr:hover > th,
+.h2h thead th.xh { color: var(--accent); }
+
+.h2h-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 1rem;
+  margin: 0.6rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.lg-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+.lg-sw { width: 0.8rem; height: 0.8rem; border-radius: 3px; border: 1px solid var(--border); }
+.lg-sw.win { background: var(--win-bg); }
+.lg-sw.draw { background: var(--draw-bg); }
+.lg-sw.loss { background: var(--loss-bg); }
+.lg-ongoing { color: var(--warn); font-style: normal; font-size: 0.6rem; }
 
 footer {
   margin-top: 2.5rem;
@@ -1044,6 +1115,11 @@ html:not(.pc-js) dialog.player-card:target {
 
 @media (max-width: 480px) {
   header h1 { font-size: 1.4rem; }
+  .standings { --rank-w: 3.3rem; }
+  .standings :is(th, td) { padding: 0.5rem 0.45rem; }
+  .standings .col-rank { padding-left: 0.6rem; }
+  /* Still on every player card; keeps Pts on screen on phones. */
+  .standings :is(.col-gf, .col-ga, .col-ppm) { display: none; }
 }
 
 @media (max-width: 400px) {
